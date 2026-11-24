@@ -1,0 +1,14 @@
+{
+  "date": "2026-11-24",
+  "commit": "5638d6f",
+  "dataset_rows": 133,
+  "partial_rows": 133,
+  "complete_rows": 0,
+  "included": 0,
+  "not_evaluated": [],
+  "violations": [],
+  "tightness": null,
+  "decisive_share": null,
+  "entries": [],
+  "claim_tested": false
+}
