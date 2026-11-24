@@ -29,6 +29,22 @@ complete rows. A row can still become complete only if its missing items are fou
 source, or in a source the row explicitly points to (for example the project's code plus the part's
 reference manual).
 
+### Gap-fill attempt (2026-11-24): still 0 complete
+
+I checked each near-complete group's own code, plus the chip's reference manual, for the missing
+wait-state and cache state.
+
+| Rows | Verified from the source code | Still missing |
+|---|---|---|
+| 24 FRDM-K64F matmul | Core 120 MHz, flash clock 24 MHz (`clock_config.c`). No file the benchmark runs, including the full SDK clock driver, touches the flash memory controller, so the K64 reset defaults apply. | The reset defaults themselves: NXP's K64 reference manual returned 404 at its official URL |
+| 10 Embench 0.5 | Board/chip code never writes `FLASH_ACR` or RCC; `SystemInit` is commented out. Part STM32F407VGT6, 16 MHz | `FLASH_ACR` reset value (ST RM0090 timed out); the repetition count (`CPU_MHZ`) is not stated |
+| 4 Embench 2.0rc2 | Code never writes `FLASH_ACR` or RCC; `--cpu-mhz 16 --gsf 16` stated | Exact part (STM32F4 Discovery vs an STM32F407IGHx linker script); `FLASH_ACR` reset value |
+
+**How to unblock the 24 K64F rows.** Get the K64 reference manual (K64P144M120SF5RM, rev 5)
+from NXP and cite its FMC reset values. Those rows could then become complete. They are still one
+repository, so N would be 24 rows from 1 source. The Embench rows can't become complete from the
+manuals alone.
+
 ## Sources (accessed 2026-11-24)
 
 | source_id | What | Rows | Core | How verified |
