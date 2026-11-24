@@ -1,16 +1,24 @@
 [build-system]
-requires = ["setuptools>=69"]
+requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcu-ruleout"
-version = "0.1.0.dev0"
+version = "0.1.0"
 description = "Says when a C kernel can NOT fit a Cortex-M0+/M4F target, even in the best case. Never says it fits."
+readme = "README.md"
+license = "MIT"
+license-files = ["LICENSE"]
+authors = [{ name = "DavidDruker" }]
 requires-python = ">=3.11"
+keywords = ["cortex-m", "embedded", "microcontroller", "static-analysis", "lower-bound"]
 dependencies = [
     "pyelftools>=0.30",
     "capstone>=5.0,<6",  # capstone 6 changed the ARM operand API
 ]
+
+[project.urls]
+Repository = "https://github.com/DavidDruker/MCUMatch"
 
 [project.optional-dependencies]
 emu = ["unicorn>=2.1,<2.2"]
