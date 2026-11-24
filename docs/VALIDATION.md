@@ -21,9 +21,12 @@ target was at least 30 complete entries.
 
 ## What was done
 
-1. `validation/PREREGISTRATION.md` and the run script were committed (`5638d6f`) before the first run.
+1. `validation/PREREGISTRATION.md` and the run script were committed (`967f882`) before the first run.
 2. `validation/run_validation.py` was run once on 2026-11-24. Output is in `validation/results.json`.
-3. Deviations from the pre-registration: none.
+3. Deviations from the pre-registration: none in method or result. One bookkeeping change: after
+   the run, commit messages across the repository were edited, which changed every commit id (file
+   contents and commit dates are unchanged). The ids in the pre-registration and in `results.json`
+   were updated to match; the pre-registration commit was originally `5638d6f`.
 
 To reproduce:
 

@@ -7,9 +7,14 @@ Anything decided after that commit is listed under "Deviations" in `docs/VALIDAT
 
 | Item | Frozen at commit |
 |---|---|
-| Dataset `data/published_measurements.csv` | `aa1261f` |
-| Completeness rule `data/README.md` (strict, item 7 included; decision of 2026-11-24) | `26d4f8b` |
-| Cycle model and tables `src/mcu_ruleout/cycle_tables/`, `cycles.py`, `emu.py` | `5290798` |
+| Dataset `data/published_measurements.csv` | `14d709a` |
+| Completeness rule `data/README.md` (strict, item 7 included; decision of 2026-11-24) | `9f5d119` |
+| Cycle model and tables `src/mcu_ruleout/cycle_tables/`, `cycles.py`, `emu.py` | `8b178a1` |
+
+*Note added after the run (the only later edit to this file):* the commit ids above were updated
+because commit messages across the repository were edited, which changes every id. File contents
+and commit dates did not change. The ids originally written here were `aa1261f`, `26d4f8b` and
+`5290798`.
 
 ## Claim under test
 
