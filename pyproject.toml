@@ -22,4 +22,4 @@ mcu-ruleout = "mcu_ruleout.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mcu_ruleout = ["targets/*.toml", "data/*.ld"]
+mcu_ruleout = ["targets/*.toml", "data/*.ld", "cycle_tables/*.toml"]

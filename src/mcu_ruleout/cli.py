@@ -162,6 +162,92 @@ def cmd_memory(args) -> int:
     return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
 
 
+def cmd_timing(args) -> int:
+    from . import timing as T
+    from .build import build, user_config
+    from .emu import run_trace
+
+    target = find_target(args.target)
+    if bool(args.elf) == bool(args.sources):
+        raise SystemExit("give either source files or --elf")
+    if not args.entry:
+        raise SystemExit("--entry is required")
+    deadline = T.parse_duration(args.deadline) if args.deadline else None
+    call_args = tuple(int(a, 0) for a in args.arg)
+    tc_version = None
+    with tempfile.TemporaryDirectory(prefix="mcu-ruleout-") as tmp:
+        if args.elf:
+            elf, built = Path(args.elf), f"{args.elf} (prebuilt)"
+        else:
+            tc = find_toolchain(args.toolchain)
+            tc_version = tc.version()
+            flags = tuple(shlex.split(args.cflags))
+            keep = [args.entry[0]] + [m for m in ([args.measure] if args.measure else []) if m != args.entry[0]]
+            r = build(tc, target.gcc_flags, [Path(s) for s in args.sources], keep + args.entry[1:],
+                      user_config(flags), Path(args.keep_build) if args.keep_build else Path(tmp),
+                      [Path(i) for i in args.include], args.define)
+            if not r.ok:
+                raise RuntimeError("build failed: " + " | ".join(r.log.splitlines()[-3:]))
+            elf = r.elf
+            built = f"{', '.join(args.sources)}  flags={' '.join(target.gcc_flags + flags)}"
+        trace = run_trace(elf, target.core, args.entry[0], args.measure, call_args, args.max_insns)
+    res = T.lower_bound(target, trace, deadline)
+    versions = _versions(tc_version)
+    try:
+        versions["unicorn"] = f"{version('unicorn')} ({trace.unicorn_model})"
+    except PackageNotFoundError:
+        pass
+    if args.json:
+        print(json.dumps({
+            "verdict": res.verdict, "ruled_out": res.ruled_out,
+            "cycles_lower_bound": res.cycles_lb, "instructions": trace.instructions,
+            "clock_hz": res.clock_hz, "time_lower_bound_s": res.time_lb_s, "deadline_s": res.deadline_s,
+            "target": {"id": target.id, "spec": str(target.path)},
+            "inputs": {"built": built, "entry": trace.entry, "measure": trace.measure, "args": list(call_args)},
+            "cycle_table": res.model_version, "versions": versions,
+            "by_class": {k: {"instructions": v[0], "cycles": v[1]} for k, v in sorted(res.by_class.items())},
+            "by_function": dict(trace.by_function.most_common()),
+            "undocumented_counted_as_zero": dict(res.undocumented), "skipped_in_it_blocks": res.skipped_in_it,
+            "assumptions": list(T.ASSUMPTIONS), "not_modeled": list(T.NOT_MODELED)}, indent=2))
+        return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
+    print(f"mcu-ruleout {versions['mcu-ruleout']}: timing check (best-case lower bound)")
+    print(f"Target:     {target.id} - {target.name}  ({target.path})")
+    print(f"Input:      {built}")
+    print(f"            entry={trace.entry}  measured={trace.measure}  args={list(call_args)}")
+    for k, v in versions.items():
+        if k != "mcu-ruleout":
+            print(f"            {k} {v}")
+    print(f"            cycle table: {res.model_version}")
+    print(f"\nExecuted instructions:  {trace.instructions:>14,}")
+    print(f"Cycle lower bound:      {res.cycles_lb:>14,}")
+    print(f"Clock (maximum rated):  {res.clock_hz:>14,} Hz   ({target.max_clock_hz.where})")
+    print(f"Time lower bound:       {res.time_lb_s * 1e6:>14,.3f} us")
+    if deadline is not None:
+        print(f"Deadline:               {deadline * 1e6:>14,.3f} us")
+    print("\n  class                instructions        cycles")
+    for cls, (n, c) in sorted(res.by_class.items(), key=lambda kv: -kv[1][1]):
+        print(f"  {cls:<18} {n:>14,} {c:>13,}")
+    if res.undocumented:
+        print("  Not in the cycle table, counted as 0: "
+              + ", ".join(f"{k} x{n:,}" for k, n in res.undocumented.most_common()))
+    if res.skipped_in_it:
+        print(f"  Skipped inside IT blocks, counted as 0: {res.skipped_in_it:,}")
+    print(f"\nVERDICT: {res.verdict}")
+    if res.ruled_out:
+        print(f"  - even in the best case it needs {res.time_lb_s * 1e6:,.3f} us > deadline {deadline * 1e6:,.3f} us")
+    else:
+        if deadline is None:
+            print("  No deadline given, so nothing can be ruled out.")
+        print("  This is not a 'meets the deadline' verdict. Real hardware can only be slower than this bound.")
+    print("\nAssumptions:")
+    for a in T.ASSUMPTIONS:
+        print(f"  - {a}")
+    print("Not modeled (each can only add time):")
+    for n in T.NOT_MODELED:
+        print(f"  - {n}")
+    return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
+
+
 def cmd_dataset(args) -> int:
     from .dataset import check
 
@@ -196,6 +282,22 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--keep-build", help="keep build outputs in this directory")
     m.add_argument("--json", action="store_true", help="machine-readable output")
     m.set_defaults(func=cmd_memory)
+    t = sub.add_parser("timing", help="best-case timing rule-out for a kernel or a prebuilt ELF")
+    t.add_argument("sources", nargs="*", help="C/C++/assembly sources of the kernel and any harness")
+    t.add_argument("--target", required=True, help="built-in target id or path to a .toml spec")
+    t.add_argument("--elf", help="trace a prebuilt ELF instead of building sources")
+    t.add_argument("--entry", action="append", default=[], help="function the emulator calls (first one given)")
+    t.add_argument("--measure", help="count only inside this function (default: the entry)")
+    t.add_argument("--arg", action="append", default=[], help="integer argument for the entry call; repeatable")
+    t.add_argument("--deadline", help="deadline with unit, e.g. 250us, 2ms, 0.001s")
+    t.add_argument("--cflags", default="-O2", help="your compiler flags (default: -O2)")
+    t.add_argument("-I", "--include", action="append", default=[], help="include directory")
+    t.add_argument("-D", "--define", action="append", default=[], help="preprocessor define")
+    t.add_argument("--toolchain", help="arm-none-eabi bin directory")
+    t.add_argument("--keep-build", help="keep build outputs in this directory")
+    t.add_argument("--max-insns", type=int, default=50_000_000, help="stop after this many counted instructions")
+    t.add_argument("--json", action="store_true", help="machine-readable output")
+    t.set_defaults(func=cmd_timing)
     d = sub.add_parser("dataset", help="check the published-measurements dataset")
     d.add_argument("data_dir", nargs="?", default="data", help="folder with published_measurements.csv and sources.csv")
     d.set_defaults(func=cmd_dataset)

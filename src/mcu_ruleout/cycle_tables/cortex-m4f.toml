@@ -1,0 +1,189 @@
+# Minimum cycle counts for the Cortex-M4 with FPU, transcribed from Arm's tables. Numbers only.
+# Rule used by the model: the lowest count the tables allow for the instruction, whatever its
+# neighbours are (so P = 1, B = 0, divide = 2, a pipelined single load or store = 1, a folded
+# IT = 0). The only context taken from the trace is whether a conditional branch was taken
+# and whether an instruction inside an IT block passed its condition (a failed one counts 0).
+# The tables assume zero wait states.
+schema = 1
+core = "cortex-m4f"
+table_version = "1"
+
+[sources.trm]
+title = "Cortex-M4 Technical Reference Manual"
+revision = "r0p0 (ARM DDI 0439B), HTML issue b"
+where = "Programmers Model > Instruction set summary: Table 3.1 (footnotes a-d), Table 3.2, Load/store timings; Floating Point Unit > FPU instruction set: Table 7.1 and its Note"
+url = "https://developer.arm.com/documentation/ddi0439/b/Programmers-Model/Instruction-set-summary/Cortex-M4-instructions"
+accessed = 2026-11-24
+note = "Arm's site marks 'r0p0 Errata 01' (PDF only) as latest; that PDF was not read. No r0p1 issue is served there. [VERIFY]"
+
+[classes.dp]
+cycles = 1
+row = "Table 3.1 Move, Add, Subtract, Saturate, Compare, Logical, Shift, Rotate, Count, Extend, Bit field, Reverse rows: 1. TEQ has an empty Cycles cell; 1 is assumed, like TST."
+names = ["mov", "movw", "movt", "add", "addw", "adc", "adr", "sub", "subw", "sbc", "rsb", "neg", "ssat", "usat",
+         "cmp", "cmn", "and", "eor", "orr", "orn", "bic", "mvn", "tst", "teq", "lsl", "lsr", "asr", "ror", "rrx",
+         "clz", "sxth", "sxtb", "uxth", "uxtb", "ubfx", "sbfx", "bfc", "bfi", "rev", "rev16", "revsh", "rbit"]
+
+[classes.dp_pc]
+cycles = 2
+row = "MOV PC, Rm: 1 + P; ADD PC, PC, Rm: 1 + P (P = 1 to 3; minimum 1)"
+
+[classes.mul]
+cycles = 1
+row = "MUL: 1; SMULL, UMULL, SMLAL, UMLAL: 1"
+names = ["mul", "smull", "umull", "smlal", "umlal"]
+
+[classes.mla]
+cycles = 2
+row = "MLA: 2; MLS: 2"
+names = ["mla", "mls"]
+
+[classes.div]
+cycles = 2
+row = "SDIV, UDIV: 2 to 12 (footnote a: early termination); minimum taken"
+names = ["sdiv", "udiv"]
+
+[classes.dsp]
+cycles = 1
+row = "Table 3.2, every row: 1"
+names = ["smmla", "smmls", "smmul", "smmlar", "smmlsr", "smmulr", "smlabb", "smlabt", "smlatb", "smlatt",
+         "smlalbb", "smlalbt", "smlaltb", "smlaltt", "smlald", "smlaldx", "smulbb", "smulbt", "smultb", "smultt",
+         "smulwb", "smulwt", "smusd", "smusdx", "smlad", "smladx", "smlawb", "smlawt", "smlsd", "smlsdx",
+         "smlsld", "smlsldx", "smuad", "smuadx", "umaal", "ssat16", "usat16", "pkhtb", "pkhbt", "sxtb16",
+         "uxtb16", "uxtab", "uxtab16", "uxtah", "sxtab", "sxtab16", "sxtah", "sel", "usad8", "usada8",
+         "uqadd16", "uqadd8", "qadd", "qadd16", "qadd8", "qdadd", "sadd8", "sadd16", "shadd16", "shadd8",
+         "uadd16", "uadd8", "uhadd16", "uhadd8", "qdsub", "uqsub16", "uqsub8", "qsub", "qsub16", "qsub8",
+         "shsub16", "shsub8", "ssub16", "ssub8", "uhsub16", "uhsub8", "usub16", "usub8", "uqasx", "uqsax",
+         "sasx", "qasx", "qsax", "shasx", "shsax", "ssax", "uasx", "uhasx", "uhsax", "usax"]
+
+[classes.load]
+cycles = 1
+row = "LDR, LDRH, LDRB, LDRSH, LDRSB and the T forms: 2 (footnote b: neighbouring single loads and stores can pipeline and complete in a single cycle); minimum taken"
+names = ["ldr", "ldrh", "ldrb", "ldrsh", "ldrsb", "ldrt", "ldrht", "ldrbt", "ldrsht", "ldrsbt"]
+
+[classes.load_pc]
+cycles = 2
+row = "LDR PC, [Rn, <op2>]: 2 (footnote b) + P; minimum 1 + 1. The Load/store timings text says at least five; the lower table figure is used."
+
+[classes.store]
+cycles = 1
+row = "STR, STRH, STRB and the T forms: 2 (footnote b); Load/store timings: STR Rx,[Ry,#imm] is always one cycle"
+names = ["str", "strh", "strb", "strt", "strht", "strbt"]
+
+[classes.dword]
+cycles = 3
+row = "LDRD, STRD: 1 + N with N = 2"
+names = ["ldrd", "strd"]
+
+[classes.multi]
+base = 1
+per_reg = 1
+row = "LDM, STM, PUSH, POP: 1 + N (N = registers in the list, including PC or LR)"
+names = ["ldm", "ldmdb", "stm", "stmdb", "push", "pop"]
+
+[classes.multi_pc]
+base = 2
+per_reg = 1
+row = "LDM {.., PC}, POP {.., PC}: 1 + N + P (minimum P = 1)"
+
+[classes.exclusive]
+cycles = 2
+row = "LDREX, LDREXH, LDREXB, STREX, STREXH, STREXB: 2"
+names = ["ldrex", "ldrexh", "ldrexb", "strex", "strexh", "strexb"]
+
+[classes.clrex]
+cycles = 1
+row = "CLREX: 1"
+names = ["clrex"]
+
+[classes.bcc]
+taken = 2
+not_taken = 1
+row = "B<cc>, CBZ, CBNZ: 1 or 1 + P (footnote c: single cycle if not taken); taken minimum 1 + 1"
+names = ["cbz", "cbnz"]
+
+[classes.b]
+cycles = 2
+row = "B, BL, BX, BLX: 1 + P; minimum 1 + 1"
+names = ["b", "bl", "bx", "blx"]
+
+[classes.table_branch]
+cycles = 3
+row = "TBB, TBH: 2 + P; minimum 2 + 1. The Load/store timings text says at least six; the lower table figure is used."
+names = ["tbb", "tbh"]
+
+[classes.it]
+cycles = 0
+row = "IT: 1 (footnote d: can be folded onto a preceding 16-bit instruction, executing in zero cycles)"
+names = ["it"]
+
+[classes.state]
+cycles = 1
+row = "CPSID, CPSIE, MRS, MSR: 1 or 2; minimum taken"
+names = ["cps", "mrs", "msr"]
+
+[classes.hint]
+cycles = 1
+row = "NOP: 1; SEV: 1"
+names = ["nop", "sev", "yield"]
+
+[classes.barrier_data]
+cycles = 1
+row = "DMB, DSB: 1 + B (B minimum 0)"
+names = ["dmb", "dsb"]
+
+[classes.barrier_isb]
+cycles = 2
+row = "ISB: 1 + B (B minimum = pipeline refill, 1)"
+names = ["isb"]
+
+[classes.unsupported]
+row = "SVC, BKPT: no count given; WFE, WFI: 1 + W (waiting time)"
+names = ["svc", "bkpt", "wfe", "wfi", "udf"]
+
+# ---- FPU, Table 7.1 ----
+
+[classes.fp_arith]
+cycles = 1
+row = "VABS, VADD, VSUB, VCMP, VCMPE, VCVT, VMUL, VNEG, VNMUL: 1 (Note: one cycle longer if the result is consumed by the next instruction; minimum taken)"
+names = ["vabs", "vadd", "vsub", "vcmp", "vcmpe", "vcvt", "vcvtr", "vcvtb", "vcvtt", "vmul", "vneg", "vnmul"]
+
+[classes.fp_div_sqrt]
+cycles = 1
+row = "VDIV, VSQRT: 14 (Note: one cycle if no further floating-point instructions are executed); minimum taken"
+names = ["vdiv", "vsqrt"]
+
+[classes.fp_mac]
+cycles = 3
+row = "VMLA, VMLS, VNMLA, VNMLS, VFMA, VFMS, VFNMA, VFNMS: 3"
+names = ["vmla", "vmls", "vnmla", "vnmls", "vfma", "vfms", "vfnma", "vfnms"]
+
+[classes.fp_load32]
+cycles = 2
+row = "VLDR.32: 2; VSTR.32: 2"
+
+[classes.fp_load64]
+cycles = 3
+row = "VLDR.64: 3; VSTR.64: 3"
+
+[classes.fp_multi32]
+base = 1
+per_reg = 1
+row = "VLDM.32, VSTM.32, VPUSH.32, VPOP.32: 1 + N"
+
+[classes.fp_multi64]
+base = 1
+per_reg = 2
+row = "VLDM.64, VSTM.64, VPUSH.64, VPOP.64: 1 + 2*N"
+
+[classes.fp_mov]
+cycles = 1
+row = "VMOV immediate/float to float register: 1; top/bottom half of double to/from core register: 1"
+
+[classes.fp_mov_core]
+cycles = 2
+row = "VMOV two floats/one double to/from two core registers, or one float to/from one core register: 2"
+
+[classes.fp_status]
+cycles = 1
+row = "VMRS: 1; VMSR: 1"
+names = ["vmrs", "vmsr"]
