@@ -22,10 +22,12 @@ The 38 near-complete rows are all GCC builds of public code with DWT cycle count
 
 They are clustered, not 38 independent data points.
 
-**Decision needed before M4 (pre-registration).** Item 7 of the rule (wait states and cache state)
-does not affect whether the bound is valid. The cycle lower bound already assumes zero wait states
-and no stalls, and real wait states or caches can only add time. Dropping item 7 would make the 38
-rows above "complete"; keeping it leaves N = 0. The README says any rule change must be logged.
+**Decision (2026-11-24): the strict rule stays unchanged, including item 7 (wait states and cache
+state).** That item does not affect whether the bound is valid, because the cycle lower bound already
+assumes zero wait states and no stalls. Dropping it was considered and rejected. As collected, N = 0
+complete rows. A row can still become complete only if its missing items are found stated in its
+source, or in a source the row explicitly points to (for example the project's code plus the part's
+reference manual).
 
 ## Sources (accessed 2026-11-24)
 
