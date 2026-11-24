@@ -1,0 +1,4 @@
+# M0 spike only. Pinned so results are reproducible.
+unicorn==2.1.4      # CPU emulator (QEMU-based). License [VERIFY]: see docs/M0_SPIKE.md
+capstone==5.0.9     # disassembler
+pyelftools==0.33    # ELF parser
