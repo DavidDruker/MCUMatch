@@ -162,6 +162,21 @@ def cmd_memory(args) -> int:
     return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
 
 
+def cmd_dataset(args) -> int:
+    from .dataset import check
+
+    rep = check(args.data_dir)
+    for e in rep.errors:
+        print(f"ERROR {e}")
+    c = rep.counts()
+    print(f"{len(rep.rows)} rows from {len(rep.sources)} sources; "
+          f"complete {c['completeness']['complete']}, partial {c['completeness']['partial']}")
+    for key in ("complete_by_core", "core", "kernel", "compiler"):
+        print(f"  {key}: " + ", ".join(f"{k} {n}" for k, n in c[key].most_common()))
+    print("OK" if rep.ok else f"{len(rep.errors)} error(s)")
+    return 0 if rep.ok else EXIT_ERROR
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mcu-ruleout", description="Says when code can NOT fit a Cortex-M target.")
     ap.add_argument("--version", action="version", version=f"mcu-ruleout {__version__}")
@@ -181,6 +196,9 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--keep-build", help="keep build outputs in this directory")
     m.add_argument("--json", action="store_true", help="machine-readable output")
     m.set_defaults(func=cmd_memory)
+    d = sub.add_parser("dataset", help="check the published-measurements dataset")
+    d.add_argument("data_dir", nargs="?", default="data", help="folder with published_measurements.csv and sources.csv")
+    d.set_defaults(func=cmd_dataset)
     args = ap.parse_args(argv)
     try:
         return args.func(args)
