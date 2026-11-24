@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mcu-ruleout"
+version = "0.1.0.dev0"
+description = "Says when a C kernel can NOT fit a Cortex-M0+/M4F target, even in the best case. Never says it fits."
+requires-python = ">=3.11"
+dependencies = [
+    "pyelftools>=0.30",
+    "capstone>=5.0,<6",  # capstone 6 changed the ARM operand API
+]
+
+[project.optional-dependencies]
+emu = ["unicorn>=2.1,<2.2"]
+
+[project.scripts]
+mcu-ruleout = "mcu_ruleout.cli:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+mcu_ruleout = ["targets/*.toml", "data/*.ld"]

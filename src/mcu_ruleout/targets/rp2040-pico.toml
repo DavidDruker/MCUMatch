@@ -1,0 +1,74 @@
+# Raspberry Pi Pico (original, Rev3) with the RP2040.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers (the PDF viewer page is printed page + 1 in both Raspberry Pi PDFs).
+schema = 1
+id = "rp2040-pico"
+name = "Raspberry Pi Pico (RP2040, 2 MB QSPI flash)"
+core = "cortex-m0plus"
+# Tool choice, not a datasheet fact: GCC flags for this core.
+gcc_flags = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]
+
+notes = [
+    "Dual core (2x Cortex-M0+ r0p1, RP2040 datasheet s2.3 p.26 and s2.4.8 p.87). The second core adds no memory.",
+    "Flash capacity is the Pico's 2 MB chip. Other RP2040 boards differ (RP2040 addresses up to 16 MB, datasheet s2.6.3 p.123), so they need their own spec.",
+    "The 256-byte boot2 at the start of flash (datasheet s2.8.1 p.131) and the 16 kB boot ROM are not subtracted; capacity stays an upper bound.",
+    "RAM capacity includes the XIP cache and USB DPRAM, which are usable as RAM only in some configurations. The datasheet itself totals 284 kB (s2.6.2.1 p.123).",
+]
+
+[sources.rp2040-ds]
+title = "RP2040 Datasheet"
+publisher = "Raspberry Pi Ltd"
+revision = "Release 13, build date 19/11/2026, build 4c5ccacb2c2f"
+url = "https://datasheets.raspberrypi.com/rp2040/rp2040-datasheet.pdf"
+accessed = 2026-11-24
+
+[sources.pico-ds]
+title = "Raspberry Pi Pico Datasheet"
+publisher = "Raspberry Pi Ltd"
+revision = "Release 22, build date 19/11/2026 (Pico Rev3)"
+url = "https://datasheets.raspberrypi.com/pico/pico-datasheet.pdf"
+accessed = 2026-11-24
+
+[fpu]
+value = "none"
+source = "rp2040-ds"
+where = "s2.4.1.2 Configuration p.67 (per-core options list no FPU); s2.8.3.2 Fast Floating Point Library p.136 (float is a ROM software library)"
+note = "Inferred: the datasheet never says 'no FPU' explicitly. Armv6-M (CPUID ARCHITECTURE 0xc, s2.4.8 Table 105 p.87)."
+
+[max_clock_hz]
+value = 200_000_000
+source = "rp2040-ds"
+where = "s2.15.3.1 Instances, Note after Table 206, p.179"
+note = """The most generous documented rating, used because a rule-out needs the best case: 200 MHz with \
+DVDD raised and VREG VSEL = 1.15 V. The guaranteed rating across process, voltage and temperature at the \
+default core voltage is 133 MHz (same note). The Pico datasheet (s1 p.3) still says up to 133 MHz."""
+
+[[flash]]
+name = "Pico on-board QSPI flash (Winbond W25Q16JV, XIP)"
+base = 0x1000_0000
+size = 2_097_152
+source = "pico-ds"
+where = "s1 About Raspberry Pi Pico p.3 ('2 MB Flash', W25Q16JV); s4.1 Programming the flash p.19; XIP base from RP2040 datasheet s2.6.3 p.123"
+
+[[ram]]
+name = "SRAM0-5 (main SRAM)"
+base = 0x2000_0000
+size = 270_336
+source = "rp2040-ds"
+where = "s2.6.2 SRAM p.122 (264 kB in six banks); s2.2.2.3-4 p.25 (SRAM_END 0x20042000)"
+
+[[ram]]
+name = "XIP cache used as SRAM"
+base = 0x1500_0000
+size = 16_384
+source = "rp2040-ds"
+where = "s2.6.2.1 p.123; s2.6.3.1 p.124; s2.2.2.2 p.24 (XIP_SRAM_BASE 0x15000000 to XIP_SRAM_END 0x15004000)"
+condition = "only with the XIP cache disabled (CTRL.EN = 0), which slows code running from flash"
+
+[[ram]]
+name = "USB DPRAM used as RAM"
+base = 0x5010_0000
+size = 4_096
+source = "rp2040-ds"
+where = "s2.6.2.1 p.123; s2.2.2.8 p.26 (USBCTRL_DPRAM_BASE); s4.1.2.7 DPSRAM p.376"
+condition = "only if USB is not used"

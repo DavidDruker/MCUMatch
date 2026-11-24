@@ -1,0 +1,44 @@
+# Test-only target with small, made-up capacities. NOT a real part.
+schema = 1
+id = "tiny-m0plus"
+name = "Test fixture (Cortex-M0+, 4 KiB flash, 8 KiB RAM)"
+core = "cortex-m0plus"
+gcc_flags = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]
+
+[sources.fixture]
+title = "Test fixture"
+revision = "n/a"
+url = "n/a"
+accessed = 2026-11-24
+
+[fpu]
+value = "none"
+source = "fixture"
+where = "made up"
+
+[max_clock_hz]
+value = 48_000_000
+source = "fixture"
+where = "made up"
+
+[[flash]]
+name = "flash"
+base = 0x0000_0000
+size = 4096
+source = "fixture"
+where = "made up"
+
+[[ram]]
+name = "sram"
+base = 0x2000_0000
+size = 6144
+source = "fixture"
+where = "made up"
+
+[[ram]]
+name = "extra sram"
+base = 0x2000_1800
+size = 2048
+source = "fixture"
+where = "made up"
+condition = "only in some configurations"

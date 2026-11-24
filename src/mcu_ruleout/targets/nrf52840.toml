@@ -1,0 +1,50 @@
+# Nordic nRF52840, chip level (on-chip memory only).
+# Every hardware number cites the manufacturer's document. Page numbers are PDF v1.11 pages;
+# the HTML version of the same document numbers its figures differently (Figure 1/2 vs 2/3).
+schema = 1
+id = "nrf52840"
+name = "Nordic nRF52840 (on-chip 1 MB flash, 256 kB RAM)"
+core = "cortex-m4f"
+# Tool choice, not a datasheet fact: fpv4-sp-d16 is GCC's name for the Cortex-M4 single-precision FPU.
+# The PS does not name the FPU architecture. [VERIFY against Arm's Cortex-M4 documentation in M3]
+gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
+
+notes = [
+    "Chip-level capacity. A board with external QSPI flash can execute from the XIP window at 0x12000000-0x19FFFFFF (PS Figure 3 p.23, s6.19.5 p.580); such a board needs its own spec.",
+    "A SoftDevice (Nordic BLE stack) would reserve part of flash and RAM. That is not subtracted, so capacity stays an upper bound.",
+    "The code-RAM alias at 0x00800000 is the same physical RAM as 0x20000000 (PS s4.2 p.21-22) and is not counted twice.",
+    "The Cortex-M4 core revision is not stated in the PS.",
+]
+
+[sources.nrf52840-ps]
+title = "nRF52840 Product Specification"
+publisher = "Nordic Semiconductor"
+revision = "v1.11 (4413_417), 2024-10-01; latest per the online revision history on the access date"
+url = "https://docs.nordicsemi.com/bundle/ps_nrf52840/"
+accessed = 2026-11-24
+
+[fpu]
+value = "single-precision FPU"
+source = "nrf52840-ps"
+where = "s4.1 CPU p.20 (feature list); s4.1.2 CPU configuration table p.21 (FPU: YES)"
+note = "DSP instructions and hardware divide are also listed in s4.1 p.20."
+
+[max_clock_hz]
+value = 64_000_000
+source = "nrf52840-ps"
+where = "s4.1.3.1 CPU performance p.21; s5.4.1 HFCLK controller p.158"
+note = "The CPU page states 'The CPU clock speed is 64 MHz.' No higher or voltage-dependent rating was found."
+
+[[flash]]
+name = "on-chip flash"
+base = 0x0000_0000
+size = 1_048_576
+source = "nrf52840-ps"
+where = "s4.2 Memory p.21 (1024 kB); s4.2.2 p.22 (256 pages of 4 kB); base address from Figure 3 memory map p.23"
+
+[[ram]]
+name = "on-chip RAM (Data RAM view)"
+base = 0x2000_0000
+size = 262_144
+source = "nrf52840-ps"
+where = "s4.2 Memory p.21-22 (256 kB); s4.2.1 and Figure 2 p.22 (RAM0-RAM8 layout); base address from Figure 3 p.23"
