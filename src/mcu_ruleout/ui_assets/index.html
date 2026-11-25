@@ -28,8 +28,7 @@
   input, select, textarea, button { font: inherit; color: inherit; }
   input[type=text], input[type=number], select, textarea {
     width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 4px; background: var(--field); }
-  textarea, input.code { font: 13.5px/1.5 var(--mono); }
-  textarea { min-height: 300px; resize: vertical; tab-size: 4; white-space: pre; overflow: auto; }
+  input.code { font: 13.5px/1.5 var(--mono); }
   :focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
   .two { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
   @media (max-width: 560px) { .two { grid-template-columns: 1fr; gap: 0; } }
@@ -45,12 +44,15 @@
   #status { min-height: 1.5em; margin: 10px 0 0; color: var(--muted); font-size: 14px; }
   details.more { margin-top: 18px; border-top: 1px solid var(--line); padding-top: 12px; }
   summary { cursor: pointer; font-weight: 600; }
-  .tabs { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 8px; }
-  .tabs:empty { display: none; }
-  .tabs button { font: 13px var(--mono); padding: 3px 9px; }
-  .tabs button[aria-selected=true] { border-color: var(--accent); color: var(--accent); }
-  .filebar { display: flex; gap: 8px; margin-bottom: 8px; }
-  .filebar input { flex: 1; min-width: 0; }
+  .drop { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding: 18px; border: 1.5px dashed var(--line);
+          border-radius: 4px; background: var(--field); color: var(--muted); }
+  .drop.over { border-color: var(--accent); }
+  .drop #pick { background: var(--bg); color: var(--ink); }
+  .files { list-style: none; margin: 8px 0 0; padding: 0; color: var(--ink); font-size: 15px; }
+  .files li { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+  .files .name { font: 13.5px var(--mono); flex: 1; min-width: 0; overflow-wrap: anywhere; }
+  .files .size { color: var(--muted); font-size: 13px; white-space: nowrap; }
+  .files button { padding: 1px 8px; }
 
   #results { margin-top: 36px; display: grid; gap: 28px; }
   .result { border-top: 2px solid var(--ink); padding-top: 14px; }
@@ -86,9 +88,14 @@
   <select id="target"></select>
   <p class="hint" id="target-info"></p>
 
-  <label for="code">Code <small>· <button class="link" id="load-example" type="button">load an example</button></small></label>
-  <div class="tabs" id="tabs" role="tablist"></div>
-  <textarea id="code" spellcheck="false" placeholder="Paste C code here"></textarea>
+  <label for="pick">Code files</label>
+  <div class="drop" id="drop">
+    <input type="file" id="file-input" multiple accept=".c,.h,.cc,.cpp,.hpp,.S,.s" hidden>
+    <button id="pick" type="button">Choose files</button>
+    <span>or drop them here · <button class="link" id="load-example" type="button">use the example</button></span>
+  </div>
+  <ul class="files" id="files" aria-label="Chosen files"></ul>
+  <p class="hint">C, C++ or assembly sources and their headers (.c .cpp .cc .S .h .hpp).</p>
 
   <div class="two">
     <div>
@@ -115,12 +122,6 @@
     <input type="text" class="code" id="cflags" spellcheck="false" value="-O2">
     <label for="defines">Defines</label>
     <input type="text" class="code" id="defines" spellcheck="false" placeholder="NAME=value OTHER">
-    <label for="fname">Files</label>
-    <div class="filebar">
-      <input type="text" class="code" id="fname" aria-label="Name of the file shown above" spellcheck="false">
-      <button id="add-file" type="button">Add file</button>
-      <button id="del-file" type="button">Remove</button>
-    </div>
   </details>
 
   <button id="run" type="button">Run checks</button>
@@ -161,39 +162,41 @@ function dur(s) {
   return s < 1e-6 ? f(s * 1e9, "ns") : s < 1e-3 ? f(s * 1e6, "µs") : s < 1 ? f(s * 1e3, "ms") : f(s, "s");
 }
 
-// ---- files: one by default; tabs appear only when there are several ----
-let files = [{ name: "kernel.c", content: "" }];
-let active = 0;
-function saveActive() { files[active].name = $("fname").value.trim(); files[active].content = $("code").value; }
+// ---- files: chosen or dropped, read in the browser, sent as text ----
+const ALLOWED = [".c", ".h", ".cc", ".cpp", ".hpp", ".S", ".s"];
+const MAX_FILES = 16, MAX_TOTAL = 900000;  // the server accepts about 1 MB per request
+let files = [];  // { name, content }
+const sizeOf = (f) => new Blob([f.content]).size;
 function showFiles() {
-  $("tabs").replaceChildren(...(files.length < 2 ? [] : files.map((f, i) => {
-    const b = el("button", { type: "button", role: "tab", "aria-selected": String(i === active) }, f.name || "(unnamed)");
-    b.addEventListener("click", () => { saveActive(); active = i; showFiles(); });
-    return b;
-  })));
-  $("fname").value = files[active].name;
-  $("code").value = files[active].content;
-  $("del-file").disabled = files.length < 2;
+  $("files").replaceChildren(...files.map((f, i) => {
+    const remove = el("button", { type: "button", "aria-label": `Remove ${f.name}` }, "×");
+    remove.addEventListener("click", () => { files.splice(i, 1); showFiles(); });
+    return el("li", {}, el("span", { class: "name" }, f.name), el("span", { class: "size" }, bytes(sizeOf(f))), remove);
+  }));
 }
-$("fname").addEventListener("input", () => {
-  files[active].name = $("fname").value.trim();
-  const tab = $("tabs").children[active];
-  if (tab) tab.textContent = files[active].name || "(unnamed)";
-});
-$("add-file").addEventListener("click", () => {
-  saveActive(); files.push({ name: `file${files.length + 1}.c`, content: "" }); active = files.length - 1; showFiles(); $("code").focus();
-});
-$("del-file").addEventListener("click", () => { files.splice(active, 1); active = Math.max(0, active - 1); showFiles(); });
-$("code").addEventListener("keydown", (e) => {
-  if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
-    e.preventDefault();
-    e.target.setRangeText("    ", e.target.selectionStart, e.target.selectionEnd, "end");
+async function addFiles(list) {
+  const skipped = [];
+  for (const file of list) {
+    if (!ALLOWED.some((ext) => file.name.endsWith(ext))) { skipped.push(`${file.name} (not a source or header file)`); continue; }
+    const content = await file.text();
+    const others = files.filter((f) => f.name !== file.name);  // a file with the same name is replaced
+    if (others.length >= MAX_FILES) { skipped.push(`${file.name} (at most ${MAX_FILES} files)`); continue; }
+    if (others.reduce((n, f) => n + sizeOf(f), 0) + file.size > MAX_TOTAL) { skipped.push(`${file.name} (total size over the limit)`); continue; }
+    files = [...others, { name: file.name, content }];
   }
-});
+  showFiles();
+  setStatus(skipped.length ? "Skipped: " + skipped.join(", ") + "." : "");
+}
+$("pick").addEventListener("click", () => $("file-input").click());
+$("file-input").addEventListener("change", async (e) => { await addFiles(e.target.files); e.target.value = ""; });
+const drop = $("drop");
+for (const type of ["dragenter", "dragover"]) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add("over"); });
+for (const type of ["dragleave", "drop"]) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove("over"); });
+drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
 $("load-example").addEventListener("click", async () => {
   try {
     const ex = await api("/api/example");
-    files = ex.files; active = 0; showFiles();
+    files = ex.files; showFiles();
     $("entry").value = ex.entry; $("measure").value = ex.measure; $("cflags").value = ex.cflags;
     $("deadline").value = ex.deadline; $("deadline-unit").value = ex.deadline_unit;
     setStatus("Example loaded.");
@@ -211,7 +214,6 @@ $("target").addEventListener("change", showTarget);
 // ---- run both checks, memory first ----
 function setStatus(text) { $("status").textContent = text; }
 function request() {
-  saveActive();
   return {
     target: $("target").value, files, entry: $("entry").value, measure: $("measure").value,
     cflags: $("cflags").value, defines: $("defines").value,
@@ -219,6 +221,8 @@ function request() {
   };
 }
 $("run").addEventListener("click", async () => {
+  if (!files.length) { setStatus("Choose at least one code file first."); return; }
+  if (!$("entry").value.trim()) { setStatus("Enter the name of the function to run."); $("entry").focus(); return; }
   const body = request();
   $("run").disabled = true;
   $("results").replaceChildren();

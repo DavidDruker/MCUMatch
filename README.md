@@ -99,8 +99,8 @@ The same two checks are available as a page in your browser:
 .\.venv\Scripts\mcu-ruleout.exe ui
 ```
 
-It opens a local page where you pick a target, paste your code, name the function to run and
-press one button; it runs the memory check and then the timing check. The page
+It opens a local page where you pick a target, choose or drop your source files, name the
+function to run and press one button; it runs the memory check and then the timing check. The page
 is served from your own computer and is reachable only from it (address `127.0.0.1`, with a random
 token in the URL), because it runs your compiler on what you paste. Press Ctrl+C in the terminal
 to stop it. It uses only Python's standard library.
