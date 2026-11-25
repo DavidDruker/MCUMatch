@@ -225,6 +225,17 @@ class _Handler(BaseHTTPRequestHandler):
     def do_POST(self) -> None:  # noqa: N802
         url = urlparse(self.path)
         routes = {"/api/memory": api_memory, "/api/timing": api_timing}
+        # Read the body before answering, even when refusing. Replying while the client is still
+        # sending can reset the connection (seen on Windows), and the client then never sees the reply.
+        try:
+            length = int(self.headers.get("Content-Length") or 0)
+        except ValueError:
+            length = -1
+        if not 0 <= length <= MAX_BODY:
+            self.close_connection = True
+            self._json(413, {"error": f"request too large (limit {MAX_BODY:,} bytes)"})
+            return
+        raw = self.rfile.read(length) if length else b""
         if not self._allowed({}):
             self._json(403, {"error": "missing or wrong token"})
             return
@@ -232,10 +243,9 @@ class _Handler(BaseHTTPRequestHandler):
             self._json(404, {"error": "not found"})
             return
         try:
-            length = int(self.headers.get("Content-Length") or 0)
-            if not 0 < length <= MAX_BODY:
-                raise UiError("request too large or empty")
-            body = json.loads(self.rfile.read(length).decode("utf-8"))
+            if not raw:
+                raise UiError("empty request")
+            body = json.loads(raw.decode("utf-8"))
             if not isinstance(body, dict):
                 raise UiError("expected a JSON object")
             self._json(200, routes[url.path](body))
