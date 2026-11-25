@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>mcu-ruleout</title>
+<style>
+  :root {
+    --bg: #f5f4f1; --panel: #ffffff; --ink: #1c1d1f; --muted: #62656b; --line: #dcdad5;
+    --accent: #1f5fae; --accent-ink: #ffffff; --field: #fbfaf8;
+    --out: #b3261e; --out-bg: #fbe9e7; --open: #4a4d53; --open-bg: #eeedea;
+    --bar: #6f8fb8; --track: #e6e4df; --code: #f1efeb;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "SF Mono", Menlo, monospace;
+    --sans: system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #17181a; --panel: #1f2023; --ink: #e9e8e4; --muted: #a2a5ab; --line: #34363b;
+      --accent: #7fb0ee; --accent-ink: #10131a; --field: #1a1b1e;
+      --out: #ff8a80; --out-bg: #3a1c1a; --open: #c9cbd0; --open-bg: #2a2b2f;
+      --bar: #5f86b8; --track: #303236; --code: #26272b;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--ink); font: 15px/1.5 var(--sans); }
+  header { padding: 20px 24px 14px; border-bottom: 1px solid var(--line); }
+  header h1 { margin: 0; font: 600 20px/1.2 var(--mono); letter-spacing: -0.01em; }
+  header p { margin: 4px 0 0; color: var(--muted); max-width: 70ch; }
+  main { display: grid; grid-template-columns: minmax(340px, 460px) minmax(0, 1fr); gap: 20px; padding: 20px 24px 40px;
+         max-width: 1320px; margin: 0 auto; align-items: start; }
+  @media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 16px; } header { padding: 16px; } }
+  section.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 16px; }
+  h2 { margin: 0 0 12px; font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+  label { display: block; font-weight: 600; font-size: 13px; margin: 14px 0 4px; }
+  label .opt { font-weight: 400; color: var(--muted); }
+  .hint { color: var(--muted); font-size: 12.5px; margin: 4px 0 0; }
+  input[type=text], input[type=number], select, textarea {
+    width: 100%; padding: 8px 10px; border: 1px solid var(--line); border-radius: 6px; background: var(--field);
+    color: var(--ink); font: inherit; }
+  input.mono, textarea { font: 13px/1.45 var(--mono); }
+  textarea { min-height: 260px; resize: vertical; tab-size: 4; white-space: pre; overflow: auto; }
+  input:focus-visible, select:focus-visible, textarea:focus-visible, button:focus-visible {
+    outline: 2px solid var(--accent); outline-offset: 1px; }
+  .row { display: flex; gap: 8px; align-items: center; }
+  .row > * { flex: 1; }
+  .row > .fixed { flex: 0 0 auto; }
+  button { font: inherit; border-radius: 6px; border: 1px solid var(--line); background: var(--panel); color: var(--ink);
+           padding: 7px 12px; cursor: pointer; }
+  button:hover:not(:disabled) { border-color: var(--accent); }
+  button:disabled { opacity: .55; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 600; padding: 9px 14px; }
+  button.small { padding: 3px 9px; font-size: 13px; }
+  .tabs { display: flex; flex-wrap: wrap; gap: 4px; margin-bottom: 6px; }
+  .tabs button { font: 12.5px var(--mono); padding: 4px 9px; }
+  .tabs button[aria-selected=true] { border-color: var(--accent); color: var(--accent); }
+  .actions { display: flex; gap: 8px; margin-top: 18px; }
+  .actions button { flex: 1; }
+  #status { min-height: 1.5em; margin-top: 10px; color: var(--muted); font-size: 13px; }
+  #results { display: grid; gap: 16px; }
+  .card h3 { margin: 0; font-size: 16px; }
+  .card .sub { color: var(--muted); font-size: 13px; margin: 2px 0 12px; }
+  .verdict { border-radius: 8px; padding: 12px 14px; margin-bottom: 14px; border: 1px solid transparent; }
+  .verdict strong { display: block; font: 600 15px/1.3 var(--mono); }
+  .verdict span { display: block; font-size: 13.5px; margin-top: 3px; }
+  .verdict.out { background: var(--out-bg); border-color: var(--out); color: var(--out); }
+  .verdict.open { background: var(--open-bg); border-color: var(--line); color: var(--open); }
+  .meter { margin: 10px 0 14px; }
+  .meter .top { display: flex; justify-content: space-between; gap: 12px; font-size: 13.5px; }
+  .meter .top b { font-weight: 600; }
+  .meter .top span { color: var(--muted); font-variant-numeric: tabular-nums; text-align: right; }
+  .track { height: 10px; background: var(--track); border-radius: 5px; overflow: hidden; margin-top: 5px; }
+  .fill { height: 100%; background: var(--bar); min-width: 2px; }
+  .fill.over { background: var(--out); }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .stat { border: 1px solid var(--line); border-radius: 8px; padding: 8px 10px; }
+  .stat div:first-child { color: var(--muted); font-size: 12px; }
+  .stat div:last-child { font: 600 16px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
+  details { border-top: 1px solid var(--line); padding: 8px 0 2px; }
+  summary { cursor: pointer; font-weight: 600; font-size: 13.5px; }
+  .scroll { overflow-x: auto; }
+  table { border-collapse: collapse; width: 100%; font-size: 13px; margin: 8px 0; }
+  th, td { text-align: right; padding: 4px 8px; border-bottom: 1px solid var(--line); font-variant-numeric: tabular-nums; white-space: nowrap; }
+  th:first-child, td:first-child { text-align: left; font-family: var(--mono); font-size: 12.5px; }
+  th { color: var(--muted); font-weight: 600; }
+  ul { margin: 6px 0; padding-left: 20px; font-size: 13.5px; }
+  li { margin: 3px 0; }
+  .note { font-size: 13px; color: var(--muted); margin: 8px 0; }
+  .versions { font: 12px/1.5 var(--mono); color: var(--muted); margin-top: 10px; overflow-wrap: anywhere; }
+  pre.err { background: var(--code); padding: 10px; border-radius: 6px; white-space: pre-wrap; overflow-wrap: anywhere;
+            font: 12.5px/1.45 var(--mono); margin: 8px 0 0; }
+  .empty p { margin: 0 0 10px; }
+  .empty dt { font: 600 13.5px var(--mono); margin-top: 10px; }
+  .empty dd { margin: 2px 0 0; color: var(--muted); }
+</style>
+</head>
+<body>
+<header>
+  <h1>mcu-ruleout</h1>
+  <p>Tells you when code cannot fit or run in time on a microcontroller, even in the best case.
+     It never says that code fits. Everything runs on this computer.</p>
+</header>
+<main>
+  <section class="panel" aria-label="Input">
+    <h2>Input</h2>
+    <label for="target" style="margin-top:0">Target</label>
+    <select id="target"></select>
+    <p class="hint" id="target-info"></p>
+
+    <label>Source files</label>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="row" style="margin-bottom:6px">
+      <input type="text" class="mono" id="fname" aria-label="File name" spellcheck="false">
+      <button class="small fixed" id="add-file" type="button">Add file</button>
+      <button class="small fixed" id="del-file" type="button">Remove</button>
+    </div>
+    <textarea id="code" aria-label="File contents" spellcheck="false"></textarea>
+    <p class="hint"><button class="small" id="load-example" type="button">Load the FIR example</button></p>
+
+    <label for="entry">Entry function</label>
+    <input type="text" class="mono" id="entry" spellcheck="false" placeholder="bench_fir">
+    <p class="hint">The function to call. It takes no arguments and sets up its own data.</p>
+
+    <label for="measure">Measure function <span class="opt">(timing, optional)</span></label>
+    <input type="text" class="mono" id="measure" spellcheck="false" placeholder="same as entry">
+    <p class="hint">Count time only inside this function, so setup code is left out.</p>
+
+    <label for="cflags">Compiler flags</label>
+    <input type="text" class="mono" id="cflags" spellcheck="false" value="-O2">
+
+    <label for="defines">Defines <span class="opt">(optional)</span></label>
+    <input type="text" class="mono" id="defines" spellcheck="false" placeholder="NAME=value OTHER">
+
+    <label for="deadline">Deadline <span class="opt">(timing)</span></label>
+    <div class="row">
+      <input type="number" id="deadline" min="0" step="any" placeholder="none">
+      <select id="deadline-unit" class="fixed" aria-label="Deadline unit" style="width:auto">
+        <option value="us">µs</option><option value="ms">ms</option><option value="s">s</option><option value="ns">ns</option>
+      </select>
+    </div>
+
+    <div class="actions">
+      <button class="primary" id="run-memory" type="button">Check memory</button>
+      <button class="primary" id="run-timing" type="button">Check timing</button>
+    </div>
+    <div id="status" role="status" aria-live="polite"></div>
+  </section>
+
+  <div id="results" aria-live="polite">
+    <section class="panel empty" id="empty">
+      <h2>Results</h2>
+      <p>Paste a kernel, or load the example, then run a check. There are only two possible answers:</p>
+      <dl>
+        <dt>RULED OUT</dt>
+        <dd>Even in the best case the code needs more memory or time than the target has.</dd>
+        <dt>NOT RULED OUT: measure on hardware</dt>
+        <dd>No proof of failure was found. This is not evidence that the code fits or is fast enough.</dd>
+      </dl>
+    </section>
+  </div>
+</main>
+<script>
+"use strict";
+const token = new URLSearchParams(location.search).get("token") || "";
+const $ = (id) => document.getElementById(id);
+
+function el(tag, attrs, ...kids) {
+  const node = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (k === "class") node.className = v; else if (k === "style") node.style.cssText = v; else node.setAttribute(k, v);
+  }
+  for (const kid of kids.flat()) if (kid !== null && kid !== undefined) node.append(kid);
+  return node;
+}
+
+async function api(path, body) {
+  const res = await fetch(path, {
+    method: body ? "POST" : "GET",
+    headers: { "X-Token": token, "Content-Type": "application/json" },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  let data;
+  try { data = await res.json(); } catch { data = { error: "The server sent an unreadable reply (HTTP " + res.status + ")." }; }
+  if (!res.ok) throw new Error(data.error || "HTTP " + res.status);
+  return data;
+}
+
+const num = (n) => Number(n).toLocaleString("en-US");
+const bytes = (n) => n >= 10240 ? `${num(n)} B (${(n / 1024).toFixed(1)} kB)` : `${num(n)} B`;
+function dur(s) {
+  if (s < 1e-6) return (s * 1e9).toLocaleString("en-US", { maximumFractionDigits: 1 }) + " ns";
+  if (s < 1e-3) return (s * 1e6).toLocaleString("en-US", { maximumFractionDigits: 3 }) + " µs";
+  if (s < 1) return (s * 1e3).toLocaleString("en-US", { maximumFractionDigits: 3 }) + " ms";
+  return s.toLocaleString("en-US", { maximumFractionDigits: 3 }) + " s";
+}
+
+// ---- files ----
+let files = [{ name: "kernel.c", content: "" }];
+let active = 0;
+function saveActive() { files[active].name = $("fname").value.trim(); files[active].content = $("code").value; }
+function showFiles() {
+  $("tabs").replaceChildren(...files.map((f, i) => {
+    const b = el("button", { type: "button", role: "tab", "aria-selected": String(i === active) }, f.name || "(unnamed)");
+    b.addEventListener("click", () => { saveActive(); active = i; showFiles(); });
+    return b;
+  }));
+  $("fname").value = files[active].name;
+  $("code").value = files[active].content;
+  $("del-file").disabled = files.length < 2;
+}
+$("fname").addEventListener("input", () => { saveActive(); $("tabs").children[active].textContent = files[active].name || "(unnamed)"; });
+$("add-file").addEventListener("click", () => {
+  saveActive(); files.push({ name: `file${files.length + 1}.c`, content: "" }); active = files.length - 1; showFiles(); $("fname").focus();
+});
+$("del-file").addEventListener("click", () => { files.splice(active, 1); active = Math.max(0, active - 1); showFiles(); });
+$("code").addEventListener("keydown", (e) => {
+  if (e.key === "Tab" && !e.shiftKey && !e.ctrlKey && !e.altKey && !e.metaKey) {
+    e.preventDefault();
+    const t = e.target, s = t.selectionStart;
+    t.setRangeText("    ", s, t.selectionEnd, "end");
+  }
+});
+$("load-example").addEventListener("click", async () => {
+  try {
+    const ex = await api("/api/example");
+    files = ex.files; active = 0; showFiles();
+    $("entry").value = ex.entry; $("measure").value = ex.measure; $("cflags").value = ex.cflags;
+    $("deadline").value = ex.deadline; $("deadline-unit").value = ex.deadline_unit;
+    setStatus("Example loaded. Run a check.");
+  } catch (e) { setStatus(e.message); }
+});
+
+// ---- targets ----
+let targets = [];
+function showTarget() {
+  const t = targets.find((x) => x.id === $("target").value);
+  if (!t) return;
+  $("target-info").textContent =
+    `${t.core} · flash ${bytes(t.flash_bytes)} · RAM ${bytes(t.ram_bytes)} · max clock ${t.max_clock_hz / 1e6} MHz`;
+}
+$("target").addEventListener("change", showTarget);
+
+// ---- running ----
+function setStatus(text) { $("status").textContent = text; }
+function setBusy(busy) { for (const id of ["run-memory", "run-timing", "load-example"]) $(id).disabled = busy; }
+function request() {
+  saveActive();
+  return {
+    target: $("target").value, files, entry: $("entry").value, measure: $("measure").value,
+    cflags: $("cflags").value, defines: $("defines").value,
+    deadline: $("deadline").value, deadline_unit: $("deadline-unit").value,
+  };
+}
+async function run(kind) {
+  setBusy(true);
+  setStatus(kind === "memory" ? "Building five ways and measuring… this takes a few seconds." : "Building and tracing in the emulator…");
+  const started = performance.now();
+  try {
+    const data = await api("/api/" + kind, request());
+    place(kind, kind === "memory" ? memoryCard(data) : timingCard(data));
+    setStatus(`Done in ${((performance.now() - started) / 1000).toFixed(1)} s.`);
+  } catch (e) {
+    place(kind, errorCard(kind, e.message));
+    setStatus("The check could not run. See the message on the right.");
+  } finally { setBusy(false); }
+}
+$("run-memory").addEventListener("click", () => run("memory"));
+$("run-timing").addEventListener("click", () => run("timing"));
+
+function place(kind, card) {
+  $("empty")?.remove();
+  card.id = "card-" + kind;
+  const old = $("card-" + kind);
+  if (old) old.replaceWith(card); else $("results").prepend(card);
+  card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// ---- rendering ----
+function verdict(d, outText, openText) {
+  return d.ruled_out
+    ? el("div", { class: "verdict out" }, el("strong", {}, d.verdict), el("span", {}, outText))
+    : el("div", { class: "verdict open" }, el("strong", {}, d.verdict), el("span", {}, openText));
+}
+function meter(label, need, cap, fmt, needWord) {
+  const over = need > cap;
+  const pct = cap > 0 ? Math.min(100, (need / cap) * 100) : 100;
+  const share = cap > 0 ? (need / cap) * 100 : 0;
+  const text = `${needWord} ${fmt(need)} of ${fmt(cap)} (${share >= 10 ? share.toFixed(0) : share.toPrecision(2)}%)`;
+  return el("div", { class: "meter" },
+    el("div", { class: "top" }, el("b", {}, label), el("span", {}, text)),
+    el("div", { class: "track" }, el("div", { class: "fill" + (over ? " over" : ""), style: `width:${pct}%` })));
+}
+function table(head, rows) {
+  return el("div", { class: "scroll" }, el("table", {},
+    el("thead", {}, el("tr", {}, head.map((h) => el("th", {}, h)))),
+    el("tbody", {}, rows.map((r) => el("tr", {}, r.map((c) => el("td", {}, String(c))))))));
+}
+function fold(title, ...kids) { return el("details", {}, el("summary", {}, title), ...kids); }
+function caveats(d) {
+  return fold("Assumptions and what is not modelled",
+    el("ul", {}, d.assumptions.map((a) => el("li", {}, a))),
+    el("p", { class: "note" }, "Not modelled:"),
+    el("ul", {}, d.not_modeled.map((a) => el("li", {}, a))));
+}
+function versions(d, extra) {
+  const parts = Object.entries(d.versions).map(([k, v]) => `${k} ${v}`);
+  if (extra) parts.push(extra);
+  return el("div", { class: "versions" }, parts.join(" · "));
+}
+function head(title, d) {
+  return [el("h3", {}, title), el("div", { class: "sub" }, `${d.target.name} · ${new Date().toLocaleTimeString()}`)];
+}
+
+function memoryCard(d) {
+  const lb = d.lower_bounds, t = d.target;
+  const builds = d.measurements.map((m) => m.ok
+    ? [m.label, num(m.flash_bytes), num(m.ram_static_bytes), num(m.stack_frame_lb_bytes ?? 0), num(m.ram_bytes)]
+    : [m.label, "build failed", "", "", ""]);
+  const failed = d.measurements.filter((m) => !m.ok);
+  const cg = d.measurements.map((m) => m.worst_case_stack_info).find(Boolean);
+  return el("section", { class: "panel card" }, ...head("Memory check", d),
+    verdict(d, d.reasons.join("; "), "This is not a “fits” verdict. Nothing here shows that the code fits or runs."),
+    meter("Flash", lb.flash_bytes, t.flash_capacity_bytes, bytes, "needs at least"),
+    meter("RAM", lb.ram_bytes, t.ram_capacity_bytes, bytes, "needs at least"),
+    el("p", { class: "note" }, `Smallest flash from “${lb.flash_from}”; smallest RAM from “${lb.ram_from}”. ` +
+      "Capacity is the most generous figure for the target."),
+    fold("Builds compared", table(["build", "flash B", "static RAM B", "stack frame B", "RAM B"], builds),
+      failed.length ? el("pre", { class: "err" }, failed.map((m) => `${m.label}: ${m.error}`).join("\n")) : null),
+    cg ? el("p", { class: "note" }, `Worst-case call-graph stack, for information only: ${num(cg.known_bytes)} B` +
+      (cg.complete ? "" : ` + unknown (${cg.unknowns.join("; ")})`) + ". It is an upper bound and never used for the verdict.") : null,
+    caveats(d), versions(d));
+}
+
+function timingCard(d) {
+  const classes = Object.entries(d.by_class).sort((a, b) => b[1].cycles - a[1].cycles)
+    .map(([k, v]) => [k, num(v.instructions), num(v.cycles)]);
+  const funcs = Object.entries(d.by_function).map(([k, v]) => [k, num(v)]);
+  const undocumented = Object.entries(d.undocumented_counted_as_zero);
+  const has = d.deadline_s !== null && d.deadline_s !== undefined;
+  const openText = has
+    ? "This is not a “meets the deadline” verdict. Real hardware can only be slower than this bound."
+    : "No deadline was given, so nothing can be ruled out. Real hardware can only be slower than this bound.";
+  return el("section", { class: "panel card" }, ...head("Timing check (best-case lower bound)", d),
+    verdict(d, `Even in the best case it needs ${dur(d.time_lower_bound_s)}, more than the deadline of ${dur(d.deadline_s ?? 0)}.`, openText),
+    el("div", { class: "stats" },
+      el("div", { class: "stat" }, el("div", {}, "Time lower bound"), el("div", {}, dur(d.time_lower_bound_s))),
+      el("div", { class: "stat" }, el("div", {}, "Cycle lower bound"), el("div", {}, num(d.cycles_lower_bound))),
+      el("div", { class: "stat" }, el("div", {}, "Instructions executed"), el("div", {}, num(d.instructions))),
+      el("div", { class: "stat" }, el("div", {}, "Clock (maximum rated)"), el("div", {}, `${d.clock_hz / 1e6} MHz`))),
+    has ? meter("Deadline", d.time_lower_bound_s, d.deadline_s, dur, "best case uses") : null,
+    el("p", { class: "note" }, `Measured function: ${d.inputs.measure} (entry ${d.inputs.entry}). ` +
+      "The bound is for this exact build and this exact input."),
+    undocumented.length ? el("p", { class: "note" }, "Not in the cycle table, counted as 0 cycles: " +
+      undocumented.map(([k, n]) => `${k} ×${num(n)}`).join(", ")) : null,
+    fold("Cycles by instruction class", table(["class", "instructions", "cycles"], classes)),
+    fold("Instructions by function", table(["function", "instructions"], funcs)),
+    caveats(d), versions(d, d.cycle_table));
+}
+
+function errorCard(kind, message) {
+  return el("section", { class: "panel card" },
+    el("h3", {}, kind === "memory" ? "Memory check" : "Timing check"),
+    el("div", { class: "sub" }, "The check did not run. No verdict was produced."),
+    el("pre", { class: "err" }, message));
+}
+
+// ---- start ----
+(async () => {
+  showFiles();
+  try {
+    targets = await api("/api/targets");
+    $("target").replaceChildren(...targets.map((t) => el("option", { value: t.id }, `${t.id} — ${t.name}`)));
+    showTarget();
+  } catch (e) { setStatus("Could not load targets: " + e.message); }
+})();
+</script>
+</body>
+</html>

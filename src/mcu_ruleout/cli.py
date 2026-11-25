@@ -162,6 +162,26 @@ def cmd_memory(args) -> int:
     return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
 
 
+def timing_json(res, built: str, call_args: tuple[int, ...], versions: dict) -> dict:
+    """Machine-readable timing result, shared by `timing --json` and the web UI."""
+    from . import timing as T
+
+    trace, target = res.trace, res.target
+    return {
+        "verdict": res.verdict, "ruled_out": res.ruled_out,
+        "cycles_lower_bound": res.cycles_lb, "instructions": trace.instructions,
+        "clock_hz": res.clock_hz, "clock_where": target.max_clock_hz.where,
+        "time_lower_bound_s": res.time_lb_s, "deadline_s": res.deadline_s,
+        "target": {"id": target.id, "name": target.name, "spec": str(target.path)},
+        "inputs": {"built": built, "entry": trace.entry, "measure": trace.measure, "args": list(call_args)},
+        "cycle_table": res.model_version, "versions": versions,
+        "by_class": {k: {"instructions": v[0], "cycles": v[1]} for k, v in sorted(res.by_class.items())},
+        "by_function": dict(trace.by_function.most_common()),
+        "undocumented_counted_as_zero": dict(res.undocumented), "skipped_in_it_blocks": res.skipped_in_it,
+        "assumptions": list(T.ASSUMPTIONS), "not_modeled": list(T.NOT_MODELED),
+    }
+
+
 def cmd_timing(args) -> int:
     from . import timing as T
     from .build import build, user_config
@@ -198,17 +218,7 @@ def cmd_timing(args) -> int:
     except PackageNotFoundError:
         pass
     if args.json:
-        print(json.dumps({
-            "verdict": res.verdict, "ruled_out": res.ruled_out,
-            "cycles_lower_bound": res.cycles_lb, "instructions": trace.instructions,
-            "clock_hz": res.clock_hz, "time_lower_bound_s": res.time_lb_s, "deadline_s": res.deadline_s,
-            "target": {"id": target.id, "spec": str(target.path)},
-            "inputs": {"built": built, "entry": trace.entry, "measure": trace.measure, "args": list(call_args)},
-            "cycle_table": res.model_version, "versions": versions,
-            "by_class": {k: {"instructions": v[0], "cycles": v[1]} for k, v in sorted(res.by_class.items())},
-            "by_function": dict(trace.by_function.most_common()),
-            "undocumented_counted_as_zero": dict(res.undocumented), "skipped_in_it_blocks": res.skipped_in_it,
-            "assumptions": list(T.ASSUMPTIONS), "not_modeled": list(T.NOT_MODELED)}, indent=2))
+        print(json.dumps(timing_json(res, built, call_args, versions), indent=2))
         return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
     print(f"mcu-ruleout {versions['mcu-ruleout']}: timing check (best-case lower bound)")
     print(f"Target:     {target.id} - {target.name}  ({target.path})")
@@ -246,6 +256,12 @@ def cmd_timing(args) -> int:
     for n in T.NOT_MODELED:
         print(f"  - {n}")
     return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
+
+
+def cmd_ui(args) -> int:
+    from .ui import serve
+
+    return serve(args.port, not args.no_browser, args.token)
 
 
 def cmd_dataset(args) -> int:
@@ -298,6 +314,11 @@ def main(argv: list[str] | None = None) -> int:
     t.add_argument("--max-insns", type=int, default=50_000_000, help="stop after this many counted instructions")
     t.add_argument("--json", action="store_true", help="machine-readable output")
     t.set_defaults(func=cmd_timing)
+    u = sub.add_parser("ui", help="open the local web UI in your browser")
+    u.add_argument("--port", type=int, default=8765, help="port on 127.0.0.1 (default 8765; 0 picks a free one)")
+    u.add_argument("--no-browser", action="store_true", help="print the address instead of opening a browser")
+    u.add_argument("--token", help=argparse.SUPPRESS)  # fixed token, for automated tests only
+    u.set_defaults(func=cmd_ui)
     d = sub.add_parser("dataset", help="check the published-measurements dataset")
     d.add_argument("data_dir", nargs="?", default="data", help="folder with published_measurements.csv and sources.csv")
     d.set_defaults(func=cmd_dataset)

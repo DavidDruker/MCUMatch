@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "mcu-ruleout"
-version = "0.1.0"
+version = "0.2.0.dev0"
 description = "Says when a C kernel can NOT fit a Cortex-M0+/M4F target, even in the best case. Never says it fits."
 readme = "README.md"
 license = "MIT"
@@ -30,4 +30,4 @@ mcu-ruleout = "mcu_ruleout.cli:main"
 where = ["src"]
 
 [tool.setuptools.package-data]
-mcu_ruleout = ["targets/*.toml", "data/*.ld", "cycle_tables/*.toml"]
+mcu_ruleout = ["targets/*.toml", "data/*.ld", "cycle_tables/*.toml", "ui_assets/*"]

@@ -91,6 +91,21 @@ VERDICT: RULED OUT (timing, best case)
   - even in the best case it needs 154.328 us > deadline 100.000 us
 ```
 
+### Web UI
+
+The same two checks are available as a page in your browser:
+
+```powershell
+.\.venv\Scripts\mcu-ruleout.exe ui
+```
+
+It opens a local page where you paste source files, pick a target and run either check. The page
+is served from your own computer and is reachable only from it (address `127.0.0.1`, with a random
+token in the URL), because it runs your compiler on what you paste. Press Ctrl+C in the terminal
+to stop it. It uses only Python's standard library.
+
+### Command-line options
+
 Useful options: `--elf app.elf` checks a prebuilt binary, `--json` gives machine-readable output,
 and `--target` also accepts a path to your own `.toml` spec. Exit codes: 0 = not ruled out,
 3 = ruled out, 1 = error.
@@ -120,9 +135,9 @@ most generous figure, because a rule-out must hold in the best case.
 .\.venv\Scripts\python.exe -m unittest discover -s tests -t .
 ```
 
-56 tests. They cover the section accounting against `arm-none-eabi-size`, the stack bound against
+67 tests. They cover the section accounting against `arm-none-eabi-size`, the stack bound against
 GCC's own figures, hand-computed cycle counts for assembly sequences on both cores, verdict
-boundaries, and a check that no output ever claims a fit.
+boundaries, the web UI's access guards and input checks, and a check that no output ever claims a fit.
 
 ## Documents
 
