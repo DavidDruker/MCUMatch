@@ -20,7 +20,7 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from .cli import _to_json, _versions, timing_json
+from . import examples, report
 from .memory import decide, measure_sources
 from .targets import builtin_target_paths, load_target
 from .toolchain import find_toolchain
@@ -108,7 +108,7 @@ def api_targets() -> list[dict]:
     for tid, path in builtin_target_paths().items():
         t = load_target(path)
         out.append({
-            "id": tid, "name": t.name, "core": t.core,
+            "id": tid, "name": t.name, "core": t.core, "fpu": t.fpu.value,
             "flash_bytes": t.flash_capacity, "ram_bytes": t.ram_capacity,
             "max_clock_hz": t.max_clock_hz.value, "clock_note": t.max_clock_hz.note,
             "flash": [{"name": r.name, "size": r.size, "where": r.where, "condition": r.condition} for r in t.flash],
@@ -118,10 +118,30 @@ def api_targets() -> list[dict]:
     return out
 
 
-def api_example() -> dict:
-    return {"files": [{"name": "fir_example.c", "content": _asset("fir_example.c").decode("utf-8")}],
-            "entry": "bench_fir", "measure": "fir_f32", "cflags": "-O2 -std=c11",
-            "deadline": "100", "deadline_unit": "us"}
+def api_examples() -> list[dict]:
+    return [{"name": ex.name, "title": ex.title, "sizes": ex.defines} for ex in examples.all_examples().values()]
+
+
+def api_example(name: str = "fir_f32") -> dict:
+    try:
+        ex = examples.get(name)
+    except KeyError as e:
+        raise UiError(str(e.args[0])) from e
+    value, unit = re.fullmatch(r"([0-9.]+)(s|ms|us|ns)", ex.deadline).groups()
+    return {"files": [{"name": ex.file, "content": ex.source()}],
+            "entry": ex.entry, "measure": ex.measure, "cflags": ex.cflags,
+            "deadline": value, "deadline_unit": unit, "sizes": ex.defines}
+
+
+def _deadline(body: dict) -> float | None:
+    from .timing import parse_duration
+
+    if not str(body.get("deadline") or "").strip():
+        return None
+    try:
+        return parse_duration(f"{body['deadline']}{body.get('deadline_unit') or 'us'}")
+    except ValueError as e:
+        raise UiError(str(e)) from e
 
 
 def api_memory(body: dict) -> dict:
@@ -139,43 +159,59 @@ def api_memory(body: dict) -> dict:
     inputs = {"sources": [s.name for s in sources], "entries": [entry], "user_flags": list(flags),
               "target_flags": list(target.gcc_flags), "defines": defines,
               "description": f"{', '.join(s.name for s in sources)}  entry={entry}"}
-    return _to_json(res, inputs, _versions(tc.version()))
+    return report.memory_json(res, inputs, report.versions(tc.version()))
 
 
 def api_timing(body: dict) -> dict:
-    from importlib.metadata import PackageNotFoundError, version
-
     from . import timing as T
-    from .build import build, user_config
-    from .emu import run_trace
 
     target, entry, flags, defines = _target(body), _symbol(body, "entry"), _flags(body), _defines(body)
     measure = _symbol(body, "measure", required=False)
-    deadline = None
-    if str(body.get("deadline") or "").strip():
-        try:
-            deadline = T.parse_duration(f"{body['deadline']}{body.get('deadline_unit') or 'us'}")
-        except ValueError as e:
-            raise UiError(str(e)) from e
+    deadline = _deadline(body)
     with tempfile.TemporaryDirectory(prefix="mcu-ruleout-ui-") as tmp:
         src = Path(tmp) / "src"
         src.mkdir()
         sources = _write_sources(body, src)
         tc = find_toolchain()
-        keep = [entry] + ([measure] if measure and measure != entry else [])
         with _RUN_LOCK:
-            r = build(tc, target.gcc_flags, sources, keep, user_config(flags), Path(tmp) / "build", [src], defines)
-            if not r.ok:
-                raise UiError("build failed:\n" + "\n".join(r.log.splitlines()[-12:]))
-            trace = run_trace(r.elf, target.core, entry, measure)
-    res = T.lower_bound(target, trace, deadline)
-    versions = _versions(tc.version())
-    try:
-        versions["unicorn"] = f"{version('unicorn')} ({trace.unicorn_model})"
-    except PackageNotFoundError:
-        pass
+            builds = T.measure_sources(tc, target, sources, entry, measure, flags, Path(tmp) / "build", [src], defines)
+    if not any(b.ok for b in builds):
+        raise UiError(builds[0].error.replace(" | ", "\n"))
+    res = T.decide(target, builds, deadline)
     built = f"{', '.join(s.name for s in sources)}  flags={' '.join(target.gcc_flags + flags)}"
-    return timing_json(res, built, (), versions)
+    return report.timing_json(res, built, (), report.versions(tc.version(), res.trace.unicorn_model))
+
+
+def api_shortlist(body: dict) -> dict:
+    """Every built-in target (or the ones listed in `targets`) against one kernel."""
+    from . import shortlist as S
+
+    paths = builtin_target_paths()
+    wanted = body.get("targets") or list(paths)
+    if not isinstance(wanted, list) or any(t not in paths for t in wanted):
+        raise UiError("unknown target in 'targets'")
+    entry, flags, defines = _symbol(body, "entry"), _flags(body), _defines(body)
+    measure = _symbol(body, "measure", required=False)
+    deadline = _deadline(body)
+    with tempfile.TemporaryDirectory(prefix="mcu-ruleout-ui-") as tmp:
+        src = Path(tmp) / "src"
+        src.mkdir()
+        sources = _write_sources(body, src)
+        tc = find_toolchain()
+        with _RUN_LOCK:
+            sl = S.run(tc, [load_target(paths[t]) for t in wanted], sources, entry, measure, flags,
+                       Path(tmp) / "build", [src], defines, deadline)
+    if not sl.ruled_out and not sl.remaining:
+        failed = [m.error for g in sl.groups for m in g.measurements if not m.ok]
+        errors = [e for r in sl.rows for e in r.errors]
+        if failed:
+            raise UiError("build failed:\n" + failed[0].replace(" | ", "\n"))
+        raise UiError(errors[0] if errors else "no target could be checked")
+    inputs = {"sources": [s.name for s in sources], "entry": entry, "measure": measure,
+              "user_flags": list(flags), "defines": defines,
+              "description": f"{', '.join(s.name for s in sources)}  entry={entry}"}
+    models = sorted({b.cost.trace.unicorn_model for g in sl.groups for b in g.builds if b.ok})
+    return report.shortlist_json(sl, inputs, report.versions(tc.version(), ", ".join(models) or None))
 
 
 class _Handler(BaseHTTPRequestHandler):
@@ -217,14 +253,19 @@ class _Handler(BaseHTTPRequestHandler):
             self._send(200, _asset("index.html"), "text/html; charset=utf-8")
         elif url.path == "/api/targets":
             self._json(200, api_targets())
+        elif url.path == "/api/examples":
+            self._json(200, api_examples())
         elif url.path == "/api/example":
-            self._json(200, api_example())
+            try:
+                self._json(200, api_example((parse_qs(url.query).get("name") or ["fir_f32"])[0]))
+            except UiError as e:
+                self._json(400, {"error": str(e)})
         else:
             self._send(404, b"not found", "text/plain; charset=utf-8")
 
     def do_POST(self) -> None:  # noqa: N802
         url = urlparse(self.path)
-        routes = {"/api/memory": api_memory, "/api/timing": api_timing}
+        routes = {"/api/memory": api_memory, "/api/timing": api_timing, "/api/shortlist": api_shortlist}
         # Read the body before answering, even when refusing. Replying while the client is still
         # sending can reset the connection (seen on Windows), and the client then never sees the reply.
         try:

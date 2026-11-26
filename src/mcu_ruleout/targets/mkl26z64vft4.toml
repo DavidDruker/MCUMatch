@@ -1,0 +1,48 @@
+# NXP (Freescale) MKL26Z64VFT4, chip level.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers, which equal the PDF page index; the first page carries no printed number.
+# The data sheet has no memory map, and the reference manual it points to (KL26P64M48SF5RM) could
+# not be fetched without a login, so the regions below have no base address.
+schema = 1
+id = "mkl26z64vft4"
+name = "NXP Kinetis MKL26Z64VFT4 (64 kB flash, 8 kB RAM)"
+core = "cortex-m0plus"
+# Tool choice, not a datasheet fact: GCC flags for this core.
+gcc_flags = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]
+provenance = "Extracted by an automated agent from the PDF on 2026-11-26. A second automated pass then re-read every cited page from the same PDF as extracted text; tables were not viewed as rendered pages. Not yet checked by a person."
+
+notes = [
+    "Used on the Teensy LC. That is general knowledge, not from the cited data sheet; check your own board.",
+    "48 MHz is the normal run mode rating; the low-power run modes are limited to 4 MHz (Table 13 p.16).",
+    "Flash configuration field, reserved regions and the split of the SRAM around 0x2000_0000 are in the reference manual, which was not read. Nothing is subtracted, so capacity stays an upper bound.",
+]
+
+[sources.kl26-ds]
+title = "Kinetis KL26 Sub-Family Data Sheet: 48 MHz Cortex-M0+ Based Microcontroller"
+publisher = "Freescale Semiconductor (now NXP)"
+revision = "KL26P64M48SF5, Rev 5, 08/2014"
+url = "https://www.nxp.com/docs/en/data-sheet/KL26P64M48SF5.pdf"
+accessed = 2026-11-26
+
+[fpu]
+value = "none"
+source = "kl26-ds"
+where = "front page p.1 (48 MHz ARM Cortex-M0+ core; no FPU is listed anywhere in the document); s7.3 Fields p.55 (Z = Cortex-M0+)"
+note = "Inferred from absence: the data sheet never says 'no FPU'."
+
+[max_clock_hz]
+value = 48_000_000
+source = "kl26-ds"
+where = "s2.3.1 Table 13 Device clock specifications p.16, normal run mode, row fSYS System and core clock; s7.3 Fields p.55 (CC: 4 = 48 MHz)"
+
+[[flash]]
+name = "program flash"
+size = 65_536
+source = "kl26-ds"
+where = "Ordering Information table p.2, row MKL26Z64VFT4 (Flash 64 KB)"
+
+[[ram]]
+name = "SRAM"
+size = 8_192
+source = "kl26-ds"
+where = "Ordering Information table p.2, row MKL26Z64VFT4 (SRAM 8 KB)"

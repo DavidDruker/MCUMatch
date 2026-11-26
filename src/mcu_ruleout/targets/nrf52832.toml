@@ -1,0 +1,50 @@
+# Nordic nRF52832, variants QFAA and CIAA (512 kB flash, 64 kB RAM), chip level.
+# Every hardware number cites the manufacturer's document. The PDF could not be fetched, so the
+# citations name chapters, tables and figures of the HTML edition and carry no page numbers. The
+# HTML edition numbers its figures per chapter, which may differ from the PDF.
+schema = 1
+id = "nrf52832"
+name = "Nordic nRF52832 QFAA/CIAA (512 kB flash, 64 kB RAM)"
+core = "cortex-m4f"
+# Tool choice, not a datasheet fact: fpv4-sp-d16 is GCC's name for the Cortex-M4 single-precision FPU.
+gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
+provenance = "Extracted by an automated agent from the HTML edition on 2026-11-26. A second automated pass then re-read the Memory chapter text, the memory map figure, the CPU chapter and the revision history in a browser. No page numbers: the PDF was not available. Not yet checked by a person."
+
+notes = [
+    "The QFAB variant has 256 kB flash and 32 kB RAM (Memory chapter, Table 1) and needs its own spec.",
+    "The Code RAM region at 0x00800000 is the same physical RAM as the Data RAM at 0x20000000 (Memory chapter) and is not counted twice.",
+    "A SoftDevice (Nordic's Bluetooth stack) would reserve part of flash and RAM. That is not subtracted, so capacity stays an upper bound.",
+    "Running from flash at 64 MHz can need up to 2 wait states with the cache off (CPU chapter, CPU performance). The timing check assumes none.",
+]
+
+[sources.nrf52832-ps]
+title = "nRF52832 Product Specification"
+publisher = "Nordic Semiconductor"
+revision = "v1.9, December 2023 (HTML edition; the revision history chapter lists this as the latest)"
+url = "https://docs.nordicsemi.com/bundle/ps_nrf52832/"
+accessed = 2026-11-26
+
+[fpu]
+value = "single-precision FPU"
+source = "nrf52832-ps"
+where = "chapter CPU, opening paragraph and feature list (single-precision floating-point unit)"
+
+[max_clock_hz]
+value = 64_000_000
+source = "nrf52832-ps"
+where = "chapter CPU, Electrical specification, CPU performance ('The CPU clock speed is 64 MHz.')"
+note = "The only CPU clock the document gives."
+
+[[flash]]
+name = "on-chip flash"
+base = 0x0000_0000
+size = 524_288
+source = "nrf52832-ps"
+where = "chapter Memory, Table 1 Memory variants (nRF52832-QFAA: 512 kB flash); Figure 2 Memory map (Flash from 0x0000 0000 to 0x0008 0000)"
+
+[[ram]]
+name = "on-chip RAM (Data RAM view)"
+base = 0x2000_0000
+size = 65_536
+source = "nrf52832-ps"
+where = "chapter Memory, Table 1 Memory variants (nRF52832-QFAA: 64 kB RAM); Figure 2 Memory map (Data RAM from 0x2000 0000 to 0x2001 0000)"

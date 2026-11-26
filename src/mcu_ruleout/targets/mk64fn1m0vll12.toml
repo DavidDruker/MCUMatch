@@ -1,0 +1,59 @@
+# NXP MK64FN1M0VLL12, chip level.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers, which equal the PDF page index; the first page carries no printed number.
+# The data sheet has no memory map, and the reference manual it points to (K64P144M120SF5RM) could
+# not be fetched without a login. The flash base comes from an NXP application note for all
+# Kinetis K-series parts; the SRAM region has no base address because its split is not stated.
+schema = 1
+id = "mk64fn1m0vll12"
+name = "NXP Kinetis MK64FN1M0VLL12 (1 MB flash, 256 kB RAM)"
+core = "cortex-m4f"
+# Tool choice, not a datasheet fact: fpv4-sp-d16 is GCC's name for the Cortex-M4 single-precision FPU.
+# The data sheet says the core has an FPU but does not state its precision.
+gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
+provenance = "Extracted by an automated agent from the PDFs on 2026-11-26. A second automated pass then re-read every cited page from the same PDFs as extracted text; tables were not viewed as rendered pages. Not yet checked by a person."
+
+notes = [
+    "Used on the FRDM-K64F board. That is general knowledge, not from the cited data sheet; check your own board.",
+    "120 MHz is the normal run mode rating; the low-power run mode is limited to 4 MHz (Table 10 p.17).",
+    "This part number has program flash only: N in the part number means no FlexNVM or FlexRAM (s7.3 Fields p.80).",
+    "The SRAM is two blocks, SRAM_L below 0x2000_0000 and SRAM_U from 0x2000_0000 (AN4745 s3 p.3). Their sizes on this part are in the reference manual, which was not read; the 256 kB total is from the data sheet.",
+    "Flash configuration field and reserved regions are not subtracted, so capacity stays an upper bound.",
+]
+
+[sources.k64-ds]
+title = "Kinetis K64F Sub-Family Data Sheet"
+publisher = "NXP Semiconductors"
+revision = "K64P144M120SF5, Rev. 7, 11/2016"
+url = "https://www.nxp.com/docs/en/data-sheet/K64P144M120SF5.pdf"
+accessed = 2026-11-26
+
+[sources.an4745]
+title = "AN4745 Optimizing Performance on Kinetis K-series MCUs"
+publisher = "Freescale Semiconductor (now NXP)"
+revision = "Rev 1, 06/2014"
+url = "https://www.nxp.com/docs/en/application-note/AN4745.pdf"
+accessed = 2026-11-26
+
+[fpu]
+value = "FPU, precision not stated in the data sheet"
+source = "k64-ds"
+where = "front page p.1 (Cortex-M4 core with DSP instructions and floating point unit); s7.3 Fields p.80 (F = Cortex-M4 w/ DSP and FPU)"
+
+[max_clock_hz]
+value = 120_000_000
+source = "k64-ds"
+where = "s2.3.1 Table 10 Device clock specifications p.17, normal run mode, row fSYS System and core clock; s7.3 Fields p.81 (CC: 12 = 120 MHz)"
+
+[[flash]]
+name = "program flash"
+base = 0x0000_0000
+size = 1_048_576
+source = "k64-ds"
+where = "Ordering Information table p.2, row MK64FN1M0VLL12 (Flash 1 MB); base address from AN4745 Table 1 CODE bus memory map p.3 (program flash from 0x0000_0000 on all K-series parts)"
+
+[[ram]]
+name = "SRAM (SRAM_L and SRAM_U together)"
+size = 262_144
+source = "k64-ds"
+where = "Ordering Information table p.2, row MK64FN1M0VLL12 (SRAM 256 KB)"

@@ -35,6 +35,14 @@ source = "rp2040-ds"
 where = "s2.4.1.2 Configuration p.67 (per-core options list no FPU); s2.8.3.2 Fast Floating Point Library p.136 (float is a ROM software library)"
 note = "Inferred: the datasheet never says 'no FPU' explicitly. Armv6-M (CPUID ARCHITECTURE 0xc, s2.4.8 Table 105 p.87)."
 
+# Printed with any rule-out that depends on library code. The bound is computed with the
+# compiler's own floating-point routines; a normal Pico SDK build does not use them.
+[library_note]
+value = "The RP2040 boot ROM holds its own floating-point routines, and the Pico SDK uses them by default in place of the compiler's (pico_float, pico_double). The datasheet lists averages of 71 cycles for an add and 58 for a multiply (V2 and V3 ROM)."
+source = "rp2040-ds"
+where = "s2.8.3.2 Fast Floating Point Library p.136; s2.8.3.2.2 Functions and Table 170 p.137"
+note = "Table 170 heads its columns 'Cycles (Avg)' while its caption speaks of average time in microseconds; the figures are averages, not minimums, so they cannot serve as a lower bound."
+
 [max_clock_hz]
 value = 200_000_000
 source = "rp2040-ds"

@@ -8,6 +8,7 @@
   :root {
     --bg: #ffffff; --ink: #111418; --muted: #5d6570; --line: #d9dde3; --field: #f6f7f9;
     --accent: #0b6e4f; --accent-ink: #ffffff; --out: #c62828; --out-bg: #fdecec; --bar: #8a96a6; --track: #e9ecf0;
+    --warn: #9a6700; --warn-bg: #fff6dc;
     --sans: Bahnschrift, "DIN Alternate", "Avenir Next", "Trebuchet MS", "Helvetica Neue", Arial, sans-serif;
     --mono: "Cascadia Mono", Consolas, "SF Mono", Menlo, "DejaVu Sans Mono", monospace;
   }
@@ -15,6 +16,7 @@
     :root {
       --bg: #101215; --ink: #e8eaed; --muted: #9aa3ae; --line: #2c3138; --field: #181b1f;
       --accent: #4fc79f; --accent-ink: #07130f; --out: #ff8a80; --out-bg: #331a1a; --bar: #6f7b8b; --track: #252a31;
+      --warn: #e3b341; --warn-bg: #2b2412;
     }
   }
   * { box-sizing: border-box; }
@@ -75,6 +77,14 @@
   h3 { margin: 18px 0 4px; font-size: 14px; font-weight: 600; }
   ul { margin: 4px 0; padding-left: 20px; font-size: 14.5px; color: var(--muted); }
   .small { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; margin: 12px 0 0; }
+  .caution { margin: 10px 0 0; padding: 10px 12px; border-left: 3px solid var(--warn); background: var(--warn-bg); font-size: 14.5px; }
+  .tally { display: flex; flex-wrap: wrap; gap: 6px 28px; margin: 8px 0 14px; }
+  .tally div { font-size: 14px; color: var(--muted); }
+  .tally b { display: block; font-size: 26px; font-weight: 600; color: var(--ink); line-height: 1.2; font-variant-numeric: tabular-nums; }
+  .tally .out b { color: var(--out); }
+  td.status, .shortlist th:nth-child(2) { text-align: left; }
+  tr.out td.status { color: var(--out); font-weight: 600; }
+  td .link { font-family: var(--mono); font-size: 13.5px; }
   pre.err { background: var(--out-bg); color: var(--out); padding: 12px; border-radius: 4px; white-space: pre-wrap;
             overflow-wrap: anywhere; font: 13px/1.5 var(--mono); margin: 10px 0 0; }
 </style>
@@ -82,7 +92,7 @@
 <body>
 <main>
   <h1>mcu-ruleout</h1>
-  <p class="lede">Finds out whether code can be ruled out on a microcontroller. It never says that code fits.</p>
+  <p class="lede">Finds the microcontrollers your code cannot run on. It never says that code fits.</p>
 
   <label for="target">Target</label>
   <select id="target"></select>
@@ -92,10 +102,13 @@
   <div class="drop" id="drop">
     <input type="file" id="file-input" multiple accept=".c,.h,.cc,.cpp,.hpp,.S,.s" hidden>
     <button id="pick" type="button">Choose files</button>
-    <span>or drop them here · <button class="link" id="load-example" type="button">use the example</button></span>
+    <span>or drop them here</span>
   </div>
   <ul class="files" id="files" aria-label="Chosen files"></ul>
   <p class="hint">C, C++ or assembly sources and their headers (.c .cpp .cc .S .h .hpp).</p>
+  <div class="inline" style="margin-top:10px">
+    <select id="example" aria-label="Load an example"><option value="">No code yet? Load an example…</option></select>
+  </div>
 
   <div class="two">
     <div>
@@ -156,7 +169,9 @@ async function api(path, body) {
 }
 
 const num = (n) => Number(n).toLocaleString("en-US");
-const bytes = (n) => n >= 10240 ? `${(n / 1024).toLocaleString("en-US", { maximumFractionDigits: 1 })} kB` : `${num(n)} B`;
+const scaled = (n, unit) => `${n.toLocaleString("en-US", { maximumFractionDigits: 1 })} ${unit}`;
+const bytes = (n) => n >= 1048576 ? scaled(n / 1048576, "MB")
+  : n >= 10240 || (n >= 1024 && n % 1024 === 0) ? scaled(n / 1024, "kB") : `${num(n)} B`;
 function dur(s) {
   const f = (v, unit) => v.toLocaleString("en-US", { maximumFractionDigits: 3 }) + " " + unit;
   return s < 1e-6 ? f(s * 1e9, "ns") : s < 1e-3 ? f(s * 1e6, "µs") : s < 1 ? f(s * 1e3, "ms") : f(s, "s");
@@ -193,25 +208,32 @@ const drop = $("drop");
 for (const type of ["dragenter", "dragover"]) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.add("over"); });
 for (const type of ["dragleave", "drop"]) drop.addEventListener(type, (e) => { e.preventDefault(); drop.classList.remove("over"); });
 drop.addEventListener("drop", (e) => addFiles(e.dataTransfer.files));
-$("load-example").addEventListener("click", async () => {
+$("example").addEventListener("change", async () => {
+  const name = $("example").value;
+  if (!name) return;
   try {
-    const ex = await api("/api/example");
+    const ex = await api("/api/example?name=" + encodeURIComponent(name));
     files = ex.files; showFiles();
     $("entry").value = ex.entry; $("measure").value = ex.measure; $("cflags").value = ex.cflags;
-    $("deadline").value = ex.deadline; $("deadline-unit").value = ex.deadline_unit;
-    setStatus("Example loaded.");
+    $("deadline").value = ex.deadline; $("deadline-unit").value = ex.deadline_unit; $("defines").value = "";
+    const sizes = Object.entries(ex.sizes).map(([k, v]) => `${k}=${v}`).join(" ");
+    setStatus("Example loaded." + (sizes ? ` Change its size under More options, Defines (defaults: ${sizes}).` : ""));
   } catch (e) { setStatus(e.message); }
+  $("example").value = "";
 });
 
 // ---- target ----
+const ALL = "*";
 let targets = [];
 function showTarget() {
   const t = targets.find((x) => x.id === $("target").value);
-  if (t) $("target-info").textContent = `${bytes(t.flash_bytes)} flash · ${bytes(t.ram_bytes)} RAM · ${t.max_clock_hz / 1e6} MHz`;
+  $("target-info").textContent = t
+    ? `${bytes(t.flash_bytes)} flash · ${bytes(t.ram_bytes)} RAM · ${t.max_clock_hz / 1e6} MHz · ${t.core}`
+    : `Checks every built-in target and strikes out the ones that cannot work.`;
 }
 $("target").addEventListener("change", showTarget);
 
-// ---- run both checks, memory first ----
+// ---- run: a shortlist over all targets, or both checks on one ----
 function setStatus(text) { $("status").textContent = text; }
 function request() {
   return {
@@ -220,15 +242,18 @@ function request() {
     deadline: $("deadline").value, deadline_unit: $("deadline-unit").value,
   };
 }
-$("run").addEventListener("click", async () => {
+async function run() {
   if (!files.length) { setStatus("Choose at least one code file first."); return; }
   if (!$("entry").value.trim()) { setStatus("Enter the name of the function to run."); $("entry").focus(); return; }
   const body = request();
   $("run").disabled = true;
   $("results").replaceChildren();
   const started = performance.now();
-  for (const [kind, title, render] of [["memory", "Memory", memoryResult], ["timing", "Timing", timingResult]]) {
-    setStatus(kind === "memory" ? "Checking memory…" : "Checking timing…");
+  const steps = body.target === ALL
+    ? [["shortlist", `Checking ${targets.length} targets…`, "Shortlist", shortlistResult]]
+    : [["memory", "Checking memory…", "Memory", memoryResult], ["timing", "Checking timing…", "Timing", timingResult]];
+  for (const [kind, busy, title, render] of steps) {
+    setStatus(busy);
     let block;
     try { block = render(await api("/api/" + kind, body)); }
     catch (e) { block = errorResult(title, e.message); }
@@ -237,7 +262,8 @@ $("run").addEventListener("click", async () => {
   setStatus(`Done in ${((performance.now() - started) / 1000).toFixed(1)} s.`);
   $("run").disabled = false;
   $("results").scrollIntoView({ behavior: "smooth", block: "start" });
-});
+}
+$("run").addEventListener("click", run);
 
 // ---- results ----
 function bar(label, need, cap, fmt) {
@@ -257,6 +283,7 @@ function result(title, d, why, summary, details) {
     el("h2", {}, title),
     el("p", { class: "verdict" + (d.ruled_out ? " out" : "") }, d.ruled_out ? "Ruled out" : "Not ruled out — measure on hardware"),
     el("p", { class: "why" }, why),
+    ...(d.cautions || []).map((c) => el("p", { class: "caution" }, c)),
     ...summary,
     el("details", {}, el("summary", {}, "Details"), ...details,
       el("h3", {}, "Assumptions"), el("ul", {}, d.assumptions.map((a) => el("li", {}, a))),
@@ -277,7 +304,10 @@ function memoryResult(d) {
   return result("Memory", d, why,
     [...bar("Flash needed, at least", lb.flash_bytes, t.flash_capacity_bytes, bytes),
      ...bar("RAM needed, at least", lb.ram_bytes, t.ram_capacity_bytes, bytes)],
-    [el("h3", {}, "Builds compared (bytes)"), table(["build", "flash", "static RAM", "stack frame"], builds),
+    [lb.your_code_flash_bytes !== null && lb.your_code_flash_bytes !== undefined
+       ? el("p", { class: "small" }, `Of that, your own code is at least ${bytes(lb.your_code_flash_bytes)} of flash and ` +
+           `${bytes(lb.your_code_ram_bytes)} of RAM. The rest is the toolchain's runtime library and padding.`) : null,
+     el("h3", {}, "Builds compared (bytes)"), table(["build", "flash", "static RAM", "stack frame"], builds),
      cg ? el("p", { class: "small" }, `Worst-case stack from the call graph, for information only: ${num(cg.known_bytes)} B` +
        (cg.complete ? "." : ` plus unknown (${cg.unknowns.join("; ")}).`)) : null]);
 }
@@ -291,6 +321,7 @@ function timingResult(d) {
   const classes = Object.entries(d.by_class).sort((a, b) => b[1].cycles - a[1].cycles)
     .map(([k, v]) => [k, num(v.instructions), num(v.cycles)]);
   const zero = Object.entries(d.undocumented_counted_as_zero);
+  const origins = Object.entries(d.cycles_by_origin || {}).sort((a, b) => b[1] - a[1]);
   const summary = has
     ? bar("Best-case time", d.time_lower_bound_s, d.deadline_s, dur)
     : [el("div", { class: "line" }, el("span", {}, "Best-case time"), el("span", {}, dur(d.time_lower_bound_s)))];
@@ -298,7 +329,59 @@ function timingResult(d) {
     [el("p", { class: "small" }, `${num(d.cycles_lower_bound)} cycles at ${d.clock_hz / 1e6} MHz, the target's highest rated clock. ` +
        `${num(d.instructions)} instructions executed in ${d.inputs.measure}. Valid for this exact build and input only.`),
      zero.length ? el("p", { class: "small" }, "Not in the cycle table, counted as 0: " + zero.map(([k, n]) => `${k} ×${num(n)}`).join(", ")) : null,
+     d.builds.length > 1 ? el("h3", {}, "Builds compared (the fastest one counts)") : null,
+     d.builds.length > 1 ? table(["build", "instructions", "cycles"], d.builds.map((b) => b.ok
+       ? [b.label + (b.label === d.lower_bound_from ? "  ← fastest" : ""), num(b.instructions), num(b.cycles)]
+       : [b.label, "not traced", ""])) : null,
+     origins.length > 1 ? el("h3", {}, "Cycles by origin") : null,
+     origins.length > 1 ? table(["origin", "cycles", "share"], origins.map(([k, v]) =>
+       [k, num(v), (100 * v / d.cycles_lower_bound).toFixed(1) + " %"])) : null,
      el("h3", {}, "Cycles by instruction class"), table(["class", "instructions", "cycles"], classes)]);
+}
+
+function shortlistResult(d) {
+  const c = d.counts, has = d.deadline_s !== null && d.deadline_s !== undefined;
+  const rows = d.rows.map((r) => {
+    const t = r.target, m = r.memory, tm = r.timing;
+    const pick = el("button", { class: "link", type: "button", title: `Run both checks on ${t.id} alone` }, t.id);
+    pick.addEventListener("click", () => { $("target").value = t.id; showTarget(); run(); });
+    const status = r.ruled_out ? `Ruled out: ${r.ruled_out_by.join(", ")}${r.depends_on_library ? " *" : ""}`
+      : (m || tm) ? "Not ruled out" : "No verdict";
+    return el("tr", { class: r.ruled_out ? "out" : "" },
+      el("td", {}, pick), el("td", { class: "status" }, status),
+      el("td", {}, m ? `${bytes(m.lower_bounds.flash_bytes)} of ${bytes(t.flash_capacity_bytes)}` : "–"),
+      el("td", {}, m ? `${bytes(m.lower_bounds.ram_bytes)} of ${bytes(t.ram_capacity_bytes)}` : "–"),
+      el("td", {}, tm ? `${dur(tm.time_lower_bound_s)} at ${t.max_clock_hz / 1e6} MHz` : "–"));
+  });
+  const errors = d.rows.flatMap((r) => r.errors.map((e) => `${r.target.id}: ${e}`));
+  const floors = d.floors.map((f) => el("li", {}, `${f.core}: ` + [
+    f.flash_bytes !== null ? `flash ${bytes(f.flash_bytes)}, RAM ${bytes(f.ram_bytes)}` : null,
+    f.cycles !== null ? `${num(f.cycles)} cycles` : null,
+    f.required_clock_hz ? `so a clock above ${(f.required_clock_hz / 1e6).toLocaleString("en-US", { maximumFractionDigits: 1 })} MHz for the deadline` : null,
+  ].filter(Boolean).join("; ")));
+  return el("section", { class: "result" },
+    el("h2", {}, "Shortlist"),
+    el("div", { class: "tally" },
+      el("div", { class: "out" }, el("b", {}, String(c.ruled_out)), "ruled out"),
+      el("div", {}, el("b", {}, String(c.not_ruled_out)), "not ruled out"),
+      c.no_verdict ? el("div", {}, el("b", {}, String(c.no_verdict)), "no verdict") : null),
+    el("p", { class: "why" }, (c.not_ruled_out
+      ? "The targets that are left are not shown to work. They could not be proven impossible, so measure on hardware."
+      : "Every target that could be checked is ruled out.") +
+      (has ? "" : " No deadline was given, so only memory can rule a target out.")),
+    d.timing_skipped ? el("p", { class: "caution" }, "Timing was not checked: " + d.timing_skipped) : null,
+    el("div", { class: "scroll" }, el("table", { class: "shortlist" },
+      el("thead", {}, el("tr", {}, ["target", "verdict", "flash, at least", "RAM, at least", "best-case time"].map((h) => el("th", {}, h)))),
+      el("tbody", {}, rows))),
+    d.rows.some((r) => r.depends_on_library) ? el("p", { class: "small" },
+      "* Depends on library code: the rule-out would not stand if the toolchain's runtime library routines were " +
+      "replaced by faster or smaller ones. Select the target name for the details.") : null,
+    errors.length ? el("pre", { class: "err" }, errors.join("\n")) : null,
+    el("details", {}, el("summary", {}, "Details"),
+      el("h3", {}, "Least that any part with the same core needs"), el("ul", {}, floors),
+      el("h3", {}, "Assumptions"), el("ul", {}, [...d.assumptions.memory, ...d.assumptions.timing].map((a) => el("li", {}, a))),
+      el("h3", {}, "Not modelled"), el("ul", {}, [...d.not_modeled.memory, ...d.not_modeled.timing].map((a) => el("li", {}, a))),
+      el("p", { class: "small" }, Object.entries(d.versions).map(([k, v]) => `${k} ${v}`).join(" · "))));
 }
 
 function errorResult(title, message) {
@@ -312,8 +395,11 @@ function errorResult(title, message) {
   showFiles();
   try {
     targets = await api("/api/targets");
-    $("target").replaceChildren(...targets.map((t) => el("option", { value: t.id }, t.name)));
+    $("target").replaceChildren(el("option", { value: ALL }, `All ${targets.length} targets`),
+      ...targets.map((t) => el("option", { value: t.id }, t.name)));
     showTarget();
+    const examples = await api("/api/examples");
+    $("example").append(...examples.map((x) => el("option", { value: x.name }, x.title)));
   } catch (e) { setStatus("Could not load targets: " + e.message); }
 })();
 </script>

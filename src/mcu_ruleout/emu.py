@@ -40,12 +40,17 @@ class Trace:
     measure: str
     hits: Counter = field(default_factory=Counter)  # (address, outcome) -> executions
     decoded: dict[int, Decoded] = field(default_factory=dict)
-    by_function: Counter = field(default_factory=Counter)
+    by_function: Counter = field(default_factory=Counter)  # executed instructions per function
     unicorn_model: str = ""
+    functions: list[tuple[int, int, str]] = field(default_factory=list)  # (address, size, name), sorted
+    return_value: int | None = None  # r0 when the entry call returned
 
     @property
     def instructions(self) -> int:
         return sum(self.hits.values())
+
+    def owner(self, addr: int) -> str:
+        return _owner(self.functions, addr)
 
 
 def _functions(elf: ELFFile) -> list[tuple[int, int, str]]:
@@ -106,7 +111,7 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
         if data is not None:
             mu.mem_write(addr, data)
 
-    trace = Trace(core, entry, measure, unicorn_model=UNICORN_MODELS[core])
+    trace = Trace(core, entry, measure, unicorn_model=UNICORN_MODELS[core], functions=funcs)
     measure_addr = addr_of[measure]
     state = {"active": False, "ret": None, "sp": None, "pending": None, "count": 0, "error": None}
     hits, decoded = trace.hits, trace.decoded
@@ -177,7 +182,8 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
     if state["active"] and measure != entry:
         raise EmulationError(f"{measure} was entered but never returned before {entry} finished")
     if not trace.hits:
-        raise EmulationError(f"{measure} was never executed")
+        raise EmulationError(f"{measure} was never executed (the compiler may have inlined or cloned it)")
+    trace.return_value = mu.reg_read(A.UC_ARM_REG_R0)
     for (addr, _), n in trace.hits.items():
         trace.by_function[_owner(funcs, addr)] += n
     return trace

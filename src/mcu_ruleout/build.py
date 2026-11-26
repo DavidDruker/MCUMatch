@@ -6,6 +6,7 @@ they can only make the measured size smaller. That is the safe direction for a l
 """
 from __future__ import annotations
 
+import re
 import subprocess
 from dataclasses import dataclass, field
 from importlib import resources
@@ -24,6 +25,16 @@ ENVELOPE_FLAGS: tuple[tuple[str, ...], ...] = (
     ("-Oz",),
     ("-Os", "-flto"),
     ("-Oz", "-flto"),
+)
+
+# Candidate "fastest plausible" optimisation levels for the timing check. Each is appended to the
+# user's own flags (GCC takes the last -O option), so flags such as -std= or -ffast-math stay in
+# force. The timing bound is the minimum over every build that could be traced.
+SPEED_ENVELOPE_FLAGS: tuple[tuple[str, ...], ...] = (
+    ("-O2",),
+    ("-O3",),
+    ("-Os",),
+    ("-O3", "-flto"),
 )
 
 
@@ -45,12 +56,28 @@ def envelope_configs() -> list[BuildConfig]:
     return [BuildConfig("envelope: " + " ".join(f), f) for f in ENVELOPE_FLAGS]
 
 
+def speed_envelope_configs(user_flags: tuple[str, ...]) -> list[BuildConfig]:
+    """The user's flags with each envelope optimisation level appended. A level that would only
+    repeat the user's own build (same last -O option, no LTO change) is left out."""
+    last_o = next((f for f in reversed(user_flags) if re.fullmatch(r"-O\w*", f)), None)
+    user_lto = user_config(user_flags).lto
+    out = []
+    for extra in SPEED_ENVELOPE_FLAGS:
+        if len(extra) == 1 and extra[0] == last_o:
+            continue
+        if "-flto" in extra and user_lto and extra[0] == last_o:
+            continue
+        out.append(BuildConfig("envelope: " + " ".join(extra), (*user_flags, *extra)))
+    return out
+
+
 @dataclass
 class BuildResult:
     config: BuildConfig
     out_dir: Path
     ok: bool = False
     elf: Path | None = None
+    map: Path | None = None  # linker map, read by origin.parse_map
     su_files: list[Path] = field(default_factory=list)
     ci_files: list[Path] = field(default_factory=list)
     commands: list[list[str]] = field(default_factory=list)
@@ -107,6 +134,7 @@ def build(
     res.log = "\n".join(logs)
     if res.ok:
         res.elf = elf
+        res.map = out_dir / "kernel.map"
         res.su_files = sorted(out_dir.glob("*.su"))
         res.ci_files = sorted(out_dir.glob("*.ci"))
     return res

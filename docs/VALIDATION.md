@@ -71,7 +71,8 @@ on silicon.
 - **Fastest route:** obtain NXP's K64 reference manual (K64P144M120SF5RM). Citing its flash
   controller reset values would complete 24 rows from one FRDM-K64F matrix-multiply repository,
   built with the same GCC 14.2.rel1 this project uses. That would be 24 entries from one source and
-  one kernel family, on the Cortex-M4F only.
+  one kernel family, on the Cortex-M4F only. *Tried again on 2026-11-26:* the manual's public
+  URL returns 404 and NXP's download link leads to a login page, so it needs an NXP account.
 - **Most convincing:** measure on a real board with the full configuration recorded. The plan
   excludes this (zero spend, no boards).
 - **No Cortex-M0+ row is close to complete**, so the M0+ model would stay untested by published

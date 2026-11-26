@@ -29,7 +29,7 @@ class Cited:
 @dataclass(frozen=True)
 class Region:
     name: str
-    base: int
+    base: int | None  # None when the cited document gives no address
     size: int
     source: str
     where: str
@@ -48,6 +48,8 @@ class Target:
     ram: tuple[Region, ...]
     sources: dict[str, dict]
     notes: tuple[str, ...] = ()
+    provenance: str = ""  # how the numbers were read and checked
+    library_note: Cited | None = None  # a documented faster or smaller runtime library for this part
     path: Path | None = field(default=None, compare=False)
 
     @property
@@ -57,6 +59,14 @@ class Target:
     @property
     def ram_capacity(self) -> int:
         return sum(r.size for r in self.ram)
+
+    @property
+    def library_note_text(self) -> str:
+        """The part's own documented alternative library, as a sentence to append to a caution."""
+        note = self.library_note
+        if note is None:
+            return ""
+        return f" For this part: {note.value} [{self.sources[note.source]['title']}, {note.where}]"
 
 
 def _cited(d: dict, key: str, sources: dict, ctx: str) -> Cited:
@@ -82,13 +92,15 @@ def _regions(d: dict, key: str, sources: dict, ctx: str) -> tuple[Region, ...]:
     out = []
     for i, r in enumerate(items):
         rctx = f"{ctx}: [[{key}]] #{i + 1}"
-        for k, typ in (("name", str), ("base", int), ("size", int)):
+        for k, typ in (("name", str), ("size", int)):
             if not isinstance(r.get(k), typ):
                 raise TargetSpecError(f"{rctx} needs '{k}' ({typ.__name__})")
+        if "base" in r and not isinstance(r["base"], int):
+            raise TargetSpecError(f"{rctx} 'base' must be an integer; leave it out if the source gives no address")
         if r["size"] <= 0:
             raise TargetSpecError(f"{rctx} size must be positive")
         _check_citation(r, sources, rctx)
-        out.append(Region(r["name"], r["base"], r["size"], r["source"], r["where"], r.get("condition", "always")))
+        out.append(Region(r["name"], r.get("base"), r["size"], r["source"], r["where"], r.get("condition", "always")))
     return tuple(out)
 
 
@@ -123,7 +135,8 @@ def load_target(path: str | Path) -> Target:
         id=d["id"], name=d["name"], core=d["core"], gcc_flags=tuple(flags),
         fpu=_cited(d, "fpu", sources, ctx), max_clock_hz=clock,
         flash=_regions(d, "flash", sources, ctx), ram=_regions(d, "ram", sources, ctx),
-        sources=sources, notes=tuple(d.get("notes", [])), path=path,
+        sources=sources, notes=tuple(d.get("notes", [])), provenance=d.get("provenance", ""),
+        library_note=_cited(d, "library_note", sources, ctx) if "library_note" in d else None, path=path,
     )
 
 

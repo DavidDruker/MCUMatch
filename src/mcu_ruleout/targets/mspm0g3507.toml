@@ -1,0 +1,58 @@
+# Texas Instruments MSPM0G3507, chip level.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers, which equal the PDF page index.
+schema = 1
+id = "mspm0g3507"
+name = "Texas Instruments MSPM0G3507 (128 kB flash, 32 kB RAM)"
+core = "cortex-m0plus"
+# Tool choice, not a datasheet fact: GCC flags for this core.
+gcc_flags = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]
+provenance = "Extracted by an automated agent from the PDFs on 2026-11-26. A second automated pass then re-read every cited page from the same PDFs as extracted text; tables were not viewed as rendered pages. Not yet checked by a person."
+
+notes = [
+    "Used on the LP-MSPM0G3507 LaunchPad. That is general knowledge, not from the cited documents; check your own board.",
+    "80 MHz needs 2 flash wait states; the limit is 48 MHz with 1 and 24 MHz with 0 (data sheet s7.3 p.26). The timing check assumes zero wait states at the maximum clock, which this part cannot do from flash. That only makes the bound more generous.",
+    "The memory table prints the flash size as '128KB-8B', ending at 0x0001.FFF8 (Table 8-5 p.57). The full 128 kB is used here so that capacity stays an upper bound.",
+    "The SRAM appears at three addresses (default 0x2000.0000, parity checked 0x2010.0000, unchecked 0x2020.0000). They are the same 32 kB, counted once.",
+    "The part has a math accelerator peripheral (MATHACL). It is not an FPU and is not modelled.",
+]
+
+[sources.mspm0g350x-ds]
+title = "MSPM0G350x Mixed-Signal Microcontrollers With CAN-FD Interface (data sheet)"
+publisher = "Texas Instruments"
+revision = "SLASEX6C, February 2023, revised October 2025"
+url = "https://www.ti.com/lit/ds/symlink/mspm0g3507.pdf"
+accessed = 2026-11-26
+
+[sources.mspm0g-trm]
+title = "MSPM0 G-Series 80MHz Microcontrollers Technical Reference Manual"
+publisher = "Texas Instruments"
+revision = "SLAU846F, June 2023, revised November 2026"
+url = "https://www.ti.com/lit/ug/slau846/slau846.pdf"
+accessed = 2026-11-26
+
+[fpu]
+value = "none"
+source = "mspm0g350x-ds"
+where = "s1 Features p.1 (Core: Arm 32-bit Cortex-M0+ CPU; no FPU is listed anywhere in the document)"
+note = "Inferred from absence: the data sheet never says 'no FPU'."
+
+[max_clock_hz]
+value = 80_000_000
+source = "mspm0g350x-ds"
+where = "s7.3 Recommended Operating Conditions (continued) p.26, row fMCLK: MCLK, CPUCLK frequency with 2 flash wait states"
+note = "The most generous rating. It needs 2 flash wait states; see the notes."
+
+[[flash]]
+name = "main flash (code, ECC corrected)"
+base = 0x0000_0000
+size = 131_072
+source = "mspm0g350x-ds"
+where = "Table 5-1 Device Comparison p.6 (MSPM0G3507: 128 / 32); s8.7.1 Table 8-5 Memory Organization p.57 (Code (Flash) from 0x0000.0000)"
+
+[[ram]]
+name = "SRAM (default region)"
+base = 0x2000_0000
+size = 32_768
+source = "mspm0g-trm"
+where = "TRM s1.3.2 Table 1-2 SRAM Region Memory Map p.21 (Default region from 0x2000.0000); size from the data sheet, Table 5-1 p.6 and Table 8-5 p.58 (32 KB)"

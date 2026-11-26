@@ -1,0 +1,50 @@
+# Microchip ATSAMD21G18A, chip level.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers (the footer reads "DS40001882L - <page>"), which equal the PDF page index.
+schema = 1
+id = "atsamd21g18a"
+name = "Microchip ATSAMD21G18A (256 kB flash, 32 kB RAM)"
+core = "cortex-m0plus"
+# Tool choice, not a datasheet fact: GCC flags for this core.
+gcc_flags = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]
+provenance = "Extracted by an automated agent from the PDF on 2026-11-26. A second automated pass then re-read every cited page from the same PDF as extracted text; tables were not viewed as rendered pages. Not yet checked by a person."
+
+notes = [
+    "Used on boards such as the Arduino Zero and the Adafruit Feather M0. That is general knowledge, not from the cited data sheet; check your own board.",
+    "48 MHz is the rating in the 85 C and 105 C chapters. At 125 C device variant A, which includes the G18A, is limited to 32 MHz (Table 39-4 p.971).",
+    "A bootloader section (BOOTPROT fuse, 0 to 32 kB, Table 22-2 p.362) and an EEPROM emulation area (EEPROM fuse, 0 to 16 kB, Table 22-3 p.363) can be reserved inside main flash. Neither is subtracted, so capacity stays an upper bound.",
+    "The RWWEE section does not exist on 256 kB devices (Table 10-1 p.40, note 2).",
+]
+
+[sources.samd21-ds]
+title = "SAM D21/DA1 Family Complete Data Sheet"
+publisher = "Microchip Technology Inc."
+revision = "DS40001882L, Revision L, February 2026"
+url = "https://ww1.microchip.com/downloads/aemDocuments/documents/MCU32/ProductDocuments/DataSheets/SAM-D21-DA1-Family-Data-Sheet-DS40001882.pdf"
+accessed = 2026-11-26
+
+[fpu]
+value = "none"
+source = "samd21-ds"
+where = "Features p.1 (Processor: Arm Cortex-M0+ CPU; no FPU is listed anywhere in the document)"
+note = "Inferred from absence: the data sheet never says 'no FPU'."
+
+[max_clock_hz]
+value = 48_000_000
+source = "samd21-ds"
+where = "s37.6 Maximum Clock Frequencies, Table 37-7, row fCPU, p.908; Features p.1"
+note = "The most generous rating. At 125 C, variant A parts are rated 32 MHz (Table 39-4 p.971)."
+
+[[flash]]
+name = "internal flash"
+base = 0x0000_0000
+size = 262_144
+source = "samd21-ds"
+where = "s10.2 Table 10-1 SAM D21 Physical Memory Map p.40, column SAMD21x18 (256 Kbytes); Table 2-1 p.13, row ATSAMD21G18A"
+
+[[ram]]
+name = "internal SRAM"
+base = 0x2000_0000
+size = 32_768
+source = "samd21-ds"
+where = "s10.2 Table 10-1 p.40, column SAMD21x18 (32 Kbytes); Table 2-1 p.13, row ATSAMD21G18A"

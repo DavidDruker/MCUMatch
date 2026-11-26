@@ -90,6 +90,33 @@ class TestTargetsCommand(unittest.TestCase):
         self.assertIn("nrf52840", out)
         self.assertNotIn("INVALID", out)
 
+    def test_json_list(self):
+        code, out = run("targets", "--json")
+        self.assertEqual(code, 0)
+        ids = {t["id"]: t for t in json.loads(out)}
+        self.assertEqual(ids["nrf52840"]["max_clock_hz"], 64_000_000)
+        self.assertEqual(ids["rp2040-pico"]["core"], "cortex-m0plus")
+
+    def test_one_target_shows_the_citation_behind_every_number(self):
+        code, out = run("targets", "rp2040-pico")
+        self.assertEqual(code, 0)
+        self.assertIn("200,000,000 Hz  [RP2040 Datasheet, s2.15.3.1", out)
+        self.assertIn("only if USB is not used", out)
+        self.assertIn("[Raspberry Pi Pico Datasheet, s1 About Raspberry Pi Pico p.3", out)
+        code, out = run("targets", "mkl26z64vft4")  # its data sheet gives no addresses
+        self.assertIn("(address not in the source)", out)
+        self.assertIn("how it was read:", out)
+
+
+@needs_toolchain
+class TestDoctorCommand(unittest.TestCase):
+    def test_reports_a_working_installation(self):
+        code, out = run("doctor")
+        self.assertEqual(code, 0, out)
+        self.assertIn("[ok] Arm GNU Toolchain", out)
+        self.assertIn("[ok] built-in targets", out)
+        self.assertNotIn("FAIL", out)
+
 
 if __name__ == "__main__":
     unittest.main()

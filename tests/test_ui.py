@@ -67,8 +67,21 @@ class TestAccessGuards(UiServerCase):
     def test_targets_and_example(self):
         status, targets = self.call("/api/targets")
         self.assertEqual(status, 200)
-        self.assertEqual({t["id"] for t in targets}, {"rp2040-pico", "nrf52840"})
+        self.assertLessEqual({"rp2040-pico", "nrf52840"}, {t["id"] for t in targets})
         self.assertEqual(self.call("/api/example")[0], 200)
+
+    def test_examples_can_be_listed_and_loaded(self):
+        status, examples = self.call("/api/examples")
+        self.assertEqual(status, 200)
+        self.assertIn("fft_f32", [e["name"] for e in examples])
+        status, ex = self.call("/api/example?name=fft_f32")
+        self.assertEqual(status, 200)
+        self.assertEqual((ex["entry"], ex["measure"], ex["deadline"], ex["deadline_unit"]),
+                         ("bench_fft", "fft_f32", "1", "ms"))
+        self.assertIn("void fft_f32(", ex["files"][0]["content"])
+        status, data = self.call("/api/example?name=nope")
+        self.assertEqual(status, 400)
+        self.assertIn("unknown example", data["error"])
 
     def test_page_never_claims_a_fit(self):
         _, page = self.call(f"/?token={TOKEN}", token=None)
@@ -136,6 +149,37 @@ class TestChecksEndToEnd(UiServerCase):
         self.assertGreater(d["cycles_lower_bound"], d["instructions"])
         status, d = self.call("/api/timing", body=self.example())
         self.assertEqual((status, d["ruled_out"], d["deadline_s"]), (200, False, None))
+
+    @unittest.skipUnless(HAVE_UNICORN, "unicorn not installed")
+    def test_timing_reports_the_envelope_and_the_library_share(self):
+        status, d = self.call("/api/timing", body=self.example(target="rp2040-pico", deadline="1", deadline_unit="ms"))
+        self.assertEqual(status, 200, d)
+        self.assertGreater(len(d["builds"]), 1)
+        self.assertIn("libgcc.a", d["cycles_by_origin"])
+        self.assertIs(d["holds_without_library"], False)
+        self.assertIn("depends on library code", d["cautions"][0])
+
+    @unittest.skipUnless(HAVE_UNICORN, "unicorn not installed")
+    def test_shortlist(self):
+        body = self.example(targets=["nrf52840", "rp2040-pico"], deadline="1", deadline_unit="ms")
+        status, d = self.call("/api/shortlist", body=body)
+        self.assertEqual(status, 200, d)
+        rows = {r["target"]["id"]: r for r in d["rows"]}
+        self.assertEqual(set(rows), {"nrf52840", "rp2040-pico"})
+        self.assertFalse(rows["nrf52840"]["ruled_out"])
+        self.assertTrue(rows["rp2040-pico"]["ruled_out"])
+        self.assertTrue(rows["rp2040-pico"]["depends_on_library"])
+        self.assertEqual(d["counts"], {"targets": 2, "ruled_out": 1, "not_ruled_out": 1, "no_verdict": 0})
+        self.assertEqual(len(d["floors"]), 2)
+
+    def test_shortlist_rejects_unknown_targets_and_broken_code(self):
+        status, d = self.call("/api/shortlist", body=self.example(targets=["nrf52840", "../x"]))
+        self.assertEqual(status, 400)
+        self.assertIn("unknown target", d["error"])
+        files = [{"name": "bad.c", "content": "int broken( { return 1; }\n"}]
+        status, d = self.call("/api/shortlist", body=self.example(files=files, entry="broken", targets=["nrf52840"]))
+        self.assertEqual(status, 400)
+        self.assertIn("build failed", d["error"])
 
     @unittest.skipUnless(HAVE_UNICORN, "unicorn not installed")
     def test_timing_build_error_is_a_400_with_the_compiler_message(self):

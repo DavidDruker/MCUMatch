@@ -1,0 +1,49 @@
+# Texas Instruments TM4C123GH6PM, chip level.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers, which equal the PDF page index.
+schema = 1
+id = "tm4c123gh6pm"
+name = "Texas Instruments TM4C123GH6PM (256 kB flash, 32 kB RAM)"
+core = "cortex-m4f"
+# Tool choice, not a datasheet fact: fpv4-sp-d16 is GCC's name for the Cortex-M4 single-precision FPU.
+gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
+provenance = "Extracted by an automated agent from the PDF on 2026-11-26. A second automated pass then re-read every cited page from the same PDF as extracted text; tables were not viewed as rendered pages. Not yet checked by a person."
+
+notes = [
+    "Used on the Tiva C Series LaunchPad (EK-TM4C123GXL). That is general knowledge, not from the cited data sheet; check your own board.",
+    "80 MHz needs the LDO at 1.2 V; with the LDO at 0.9 V the maximum system clock is 20 MHz (s5.2.6 p.230).",
+    "0x2200.0000 to 0x220F.FFFF is the bit-band alias of the same SRAM, not more RAM (Table 2-4 p.92).",
+    "The 2 kB EEPROM is reached through registers and is not counted as flash or RAM (s8.2.4 p.534).",
+]
+
+[sources.tm4c123-ds]
+title = "Tiva TM4C123GH6PM Microcontroller Data Sheet"
+publisher = "Texas Instruments"
+revision = "DS-TM4C123GH6PM-15842.2741, SPMS376E, June 12, 2014"
+url = "https://www.ti.com/lit/ds/symlink/tm4c123gh6pm.pdf"
+accessed = 2026-11-26
+
+[fpu]
+value = "single-precision FPU"
+source = "tm4c123-ds"
+where = "s1.3.1.1 Processor Core p.49 (IEEE754-compliant single-precision Floating-Point Unit); Table 1-1 p.46 (ARM Cortex-M4F processor core)"
+
+[max_clock_hz]
+value = 80_000_000
+source = "tm4c123-ds"
+where = "Table 1-1 TM4C123GH6PM Microcontroller Features p.46, Performance row (80-MHz operation); s5.2.6 LDO Sleep/Deep-Sleep Power Control p.230"
+note = "The only rating given, with the LDO at 1.2 V."
+
+[[flash]]
+name = "on-chip flash"
+base = 0x0000_0000
+size = 262_144
+source = "tm4c123-ds"
+where = "Table 1-1 p.46 (256 KB single-cycle Flash memory); s2.4 Table 2-4 Memory Map p.92, row On-chip Flash (0x0000.0000 to 0x0003.FFFF)"
+
+[[ram]]
+name = "bit-banded on-chip SRAM"
+base = 0x2000_0000
+size = 32_768
+source = "tm4c123-ds"
+where = "Table 1-1 p.46 (32 KB single-cycle SRAM); s2.4 Table 2-4 p.92 (0x2000.0000 to 0x2000.7FFF)"

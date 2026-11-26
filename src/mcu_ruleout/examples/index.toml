@@ -1,0 +1,66 @@
+# Built-in example kernels. Each is one self-contained C file: the kernel, static buffers and a
+# small harness that fills them with fixed data. `mcu-ruleout examples` lists them and
+# `--example NAME` runs a check on one.
+#   defines   the default sizes, shown for information; override them with -D
+#   deadline  a deadline that makes the example interesting, used by the web UI
+#   selftest  extra defines for the -D SELFTEST build that the tests run
+
+[fir_f32]
+title = "FIR filter, float"
+file = "fir_f32.c"
+entry = "bench_fir"
+measure = "fir_f32"
+cflags = "-O2 -std=c11"
+deadline = "100us"
+defines = { NOUT = "64", NTAPS = "16" }
+selftest = []
+
+[fir_q15]
+title = "FIR filter, Q15 fixed point"
+file = "fir_q15.c"
+entry = "bench_fir_q15"
+measure = "fir_q15"
+cflags = "-O2 -std=c11"
+deadline = "100us"
+defines = { NOUT = "64", NTAPS = "16" }
+selftest = []
+
+[biquad_f32]
+title = "IIR biquad cascade, float"
+file = "biquad_f32.c"
+entry = "bench_biquad"
+measure = "biquad_f32"
+cflags = "-O2 -std=c11"
+deadline = "200us"
+defines = { NSAMPLES = "256", NSTAGES = "2" }
+selftest = ["NSAMPLES=512"]
+
+[pid_f32]
+title = "PID controller, float, 100 steps"
+file = "pid_f32.c"
+entry = "bench_pid"
+measure = "pid_step"
+cflags = "-O2 -std=c11"
+deadline = "100us"
+defines = { NSTEPS = "100" }
+selftest = ["NSTEPS=400"]
+
+[fft_f32]
+title = "Complex FFT, radix 2, float"
+file = "fft_f32.c"
+entry = "bench_fft"
+measure = "fft_f32"
+cflags = "-O2 -std=c11"
+deadline = "1ms"
+defines = { LOG2N = "8" }
+selftest = []
+
+[matmul_f32]
+title = "Matrix multiply, float"
+file = "matmul_f32.c"
+entry = "bench_matmul"
+measure = "matmul_f32"
+cflags = "-O2 -std=c11"
+deadline = "100us"
+defines = { N = "8" }
+selftest = []

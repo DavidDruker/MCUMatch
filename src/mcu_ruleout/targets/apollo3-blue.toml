@@ -1,0 +1,56 @@
+# Ambiq Apollo3 Blue (AMA3B1KK), chip level.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers ("Page N of 960"), which equal the PDF page index.
+schema = 1
+id = "apollo3-blue"
+name = "Ambiq Apollo3 Blue AMA3B1KK (1 MB flash, 384 kB RAM)"
+core = "cortex-m4f"
+# Tool choice, not a datasheet fact: fpv4-sp-d16 is GCC's name for the Cortex-M4 single-precision FPU.
+# The datasheet says the core has a floating point unit but does not state its precision.
+gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
+provenance = "Extracted by an automated agent from the PDF on 2026-11-26. A second automated pass then re-read every cited page from the same PDF as extracted text; tables were not viewed as rendered pages. Not yet checked by a person."
+
+notes = [
+    "Used on the SparkFun Artemis modules. That is general knowledge, not from the cited datasheet; check your own board.",
+    "96 MHz is the TurboSPOT burst mode. It is off by default, needs the burst feature enabled on the part and the BLE/burst buck converter running, and speeds up only the core and memories (s12.1.6 p.550). The nominal clock is 48 MHz.",
+    "The boot loader ROM is a separate region and is not counted as flash (Table 5 p.78). Any flash a secure boot loader keeps is not subtracted, so capacity stays an upper bound.",
+]
+
+[sources.apollo3-ds]
+title = "Apollo3 and Apollo3 Blue SoC Datasheet"
+publisher = "Ambiq Micro, Inc."
+revision = "DS-A3-1p4p0, Revision 1.4.0, 2026"
+url = "https://contentportal.ambiq.com/documents/20123/388385/Apollo3-Blue-SoC-Datasheet.pdf"
+accessed = 2026-11-26
+
+[fpu]
+value = "FPU, precision not stated in the datasheet"
+source = "apollo3-ds"
+where = "s2 System Core p.72 (32-bit ARM Cortex-M4 processor with Floating Point Unit); Features p.2"
+
+[max_clock_hz]
+value = 96_000_000
+source = "apollo3-ds"
+where = "s12.1.6 TurboSPOT Mode Support p.550 (in TurboSPOT mode the core clock runs at 96 MHz); Features p.2; Table 1202 Recommended Operating Conditions p.816"
+note = "The most generous documented rating, used because a rule-out needs the best case. It is a burst mode with conditions; the nominal clock is 48 MHz (Features p.2)."
+
+[[flash]]
+name = "flash memory"
+base = 0x0000_0000
+size = 1_048_576
+source = "apollo3-ds"
+where = "s3.3 Table 5 MCU System Memory Map p.78 (0x00000000 - 0x000FFFFF Flash); Table 1564 Ordering Information p.954 (AMA3B1KK: 1 MB)"
+
+[[ram]]
+name = "SRAM (TCM), low-latency"
+base = 0x1000_0000
+size = 65_536
+source = "apollo3-ds"
+where = "s3.3 Table 5 p.78 (0x10000000 - 0x1000FFFF SRAM (TCM))"
+
+[[ram]]
+name = "SRAM (Main)"
+base = 0x1001_0000
+size = 327_680
+source = "apollo3-ds"
+where = "s3.3 Table 5 p.78 (0x10010000 - 0x1005FFFF SRAM (Main)); Table 1564 p.954 (384 kB in total with the TCM)"

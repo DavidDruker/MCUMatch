@@ -1,0 +1,65 @@
+# Microchip ATSAMD51J19A, chip level.
+# Every hardware number cites the manufacturer's document. Page numbers are the printed page
+# numbers (the footer reads "DS60001507N - <page>"), which equal the PDF page index.
+schema = 1
+id = "atsamd51j19a"
+name = "Microchip ATSAMD51J19A (512 kB flash, 192 kB RAM)"
+core = "cortex-m4f"
+# Tool choice, not a datasheet fact: fpv4-sp-d16 is GCC's name for the Cortex-M4 single-precision FPU.
+gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
+provenance = "Extracted by an automated agent from the PDF on 2026-11-26. A second automated pass then re-read every cited page from the same PDF as extracted text; tables were not viewed as rendered pages. Not yet checked by a person."
+
+notes = [
+    "Used on boards such as the Adafruit Feather M4 Express. That is general knowledge, not from the cited data sheet; check your own board.",
+    "120 MHz applies up to 105 C; at 125 C the rating is 100 MHz (Operating Conditions p.1). The data sheet says the clock table values are based on simulation and are not covered by production test (Table 54-6 note 1, p.1860).",
+    "RAM capacity includes the backup SRAM and the tightly coupled memory, which are usable only in some configurations. With RAM ECC enabled the top half of system SRAM is reserved, and with the trace buffer enabled the bottom 32 kB is (s9.3 p.51-52). None of that is subtracted.",
+    "A bootloader section (BOOTPROT) and SmartEEPROM blocks can be reserved inside main flash (Table 9-2 p.53, s25.6.2 p.602); both default to none and are not subtracted.",
+]
+
+[sources.samd51-ds]
+title = "SAM D5x/E5x Family Complete Data Sheet"
+publisher = "Microchip Technology Inc."
+revision = "DS60001507N, Revision N, 03/2026"
+url = "https://ww1.microchip.com/downloads/aemDocuments/documents/MCU32/ProductDocuments/DataSheets/SAM-D5x-E5x-Family-Data-Sheet-DS60001507.pdf"
+accessed = 2026-11-26
+
+[fpu]
+value = "single-precision FPU"
+source = "samd51-ds"
+where = "s10.1.3 Cortex-M4 Processor Features and Configuration p.57 (IEEE 754-compliant single-precision FPU); configuration table p.58"
+
+[max_clock_hz]
+value = 120_000_000
+source = "samd51-ds"
+where = "s54.6 Table 54-6 Maximum Peripheral Clock Frequencies, row fCPU, p.1860; Operating Conditions p.1"
+note = "The most generous rating: DC to 120 MHz from -40 C to +105 C. At +125 C it is 100 MHz."
+
+[[flash]]
+name = "embedded flash"
+base = 0x0000_0000
+size = 524_288
+source = "samd51-ds"
+where = "s9.2 Table 9-1 Physical Memory Map p.50, column SAMD51x19 (512 KB); Table 1-2 p.18, row SAMD51J19"
+
+[[ram]]
+name = "embedded SRAM"
+base = 0x2000_0000
+size = 196_608
+source = "samd51-ds"
+where = "s9.2 Table 9-1 p.50, column SAMD51x19 (192 KB); Table 1-2 p.18, row SAMD51J19 (192/8)"
+
+[[ram]]
+name = "backup SRAM"
+base = 0x4700_0000
+size = 8_192
+source = "samd51-ds"
+where = "s9.2 Table 9-1 p.50, row Backup SRAM (8 KB)"
+condition = "a separate region in the backup power domain"
+
+[[ram]]
+name = "tightly coupled memory, taken from the cache"
+base = 0x0300_0000
+size = 4_096
+source = "samd51-ds"
+where = "Features p.1 (up to 4 KB of TCM); s11.6.7 and Table 11-1 TCM Sizes p.74-75; Figure 8-1 Product Mapping p.48 (CMCC region at 0x03000000)"
+condition = "only with the cache disabled or made smaller: TCM size = maximum cache size - configured cache size"

@@ -33,6 +33,7 @@ class FrameBound:
     bytes: int
     steps: list[str] = field(default_factory=list)  # instructions that reserved stack
     stopped_at: str = ""
+    own_bytes: int = 0  # the part reserved by `function` itself, without any callee
 
 
 class _Code:
@@ -117,6 +118,7 @@ def _prefix_frame(code: _Code, md: Cs, name: str, depth: int, visiting: set[str]
             break
     else:
         fb.stopped_at = fb.stopped_at or "end of function"
+    fb.own_bytes = fb.bytes
     fb.bytes += best
     return fb
 
