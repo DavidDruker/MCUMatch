@@ -53,6 +53,24 @@ def _use_example(args) -> None:
         args.cflags = "-O2"
 
 
+def _share_inputs(args, flags: tuple[str, ...] = (), n_args: int = 0):
+    """What the command was given, reduced to what a shareable result may hold."""
+    from .share import Inputs
+
+    elf = bool(getattr(args, "elf", None))
+    return Inputs(n_sources=0 if elf else len(args.sources), example=getattr(args, "example", None),
+                  prebuilt_elf=elf, user_flags=tuple(flags), n_defines=len(args.define), n_includes=len(args.include),
+                  envelope=not args.no_envelope and not elf, entry=args.entry[0] if args.entry else None,
+                  measure=getattr(args, "measure", None), n_args=n_args)
+
+
+def _write_share(args, result: dict) -> None:
+    """Write the redacted result. The note goes to stderr so `--json` output stays valid JSON."""
+    Path(args.share).write_text(json.dumps(result, indent=2) + "\n", encoding="utf-8", newline="\n")
+    names = "function names included" if args.share_names else "no function names"
+    print(f"Shareable result written to {args.share} (no source text, no file paths, {names}).", file=sys.stderr)
+
+
 def _source_names(args) -> list[str]:
     """How the inputs are named in a report. A built-in example is named, not shown as a local path."""
     if getattr(args, "example", None):
@@ -126,7 +144,7 @@ def cmd_memory(args) -> int:
         raise SystemExit("give either source files or --elf, not both")
     if not args.elf and not args.sources:
         raise SystemExit("give source files, --example or --elf")
-    tc_version = None
+    tc_version, flags = None, ()
     if args.elf:
         elf = Path(args.elf)
         entry = _elf_entry(elf, args.entry)
@@ -155,6 +173,10 @@ def cmd_memory(args) -> int:
         print(json.dumps(report.memory_json(res, inputs, vers), indent=2))
     else:
         report.print_memory(res, inputs, vers)
+    if args.share:
+        from .share import memory_share
+
+        _write_share(args, memory_share(res, vers, _share_inputs(args, flags), args.share_names))
     return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
 
 
@@ -169,7 +191,7 @@ def cmd_timing(args) -> int:
         raise SystemExit("--entry is required")
     deadline = _deadline(args)
     call_args = tuple(int(a, 0) for a in args.arg)
-    tc_version = None
+    tc_version, flags = None, ()
     if args.elf:
         builds = [T.measure_elf(f"as built: {Path(args.elf).name}", Path(args.elf), target.core, args.entry[0],
                                 args.measure, call_args, args.max_insns)]
@@ -190,6 +212,10 @@ def cmd_timing(args) -> int:
         print(json.dumps(report.timing_json(res, built, call_args, vers), indent=2))
     else:
         report.print_timing(res, built, call_args, vers)
+    if args.share:
+        from .share import timing_share
+
+        _write_share(args, timing_share(res, vers, _share_inputs(args, flags, len(call_args)), args.share_names))
     return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
 
 
@@ -250,6 +276,10 @@ def cmd_shortlist(args) -> int:
         report.print_shortlist(sl, inputs, vers)
         if args.report:
             print(f"\nReport written to {args.report}")
+    if args.share:
+        from .share import shortlist_share
+
+        _write_share(args, shortlist_share(sl, vers, _share_inputs(args, flags, len(call_args)), args.share_names))
     if sl.remaining:
         return EXIT_NOT_RULED_OUT
     return EXIT_ERROR if sl.failed else EXIT_RULED_OUT  # a target with no verdict is not a rule-out
@@ -357,6 +387,11 @@ def _build_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--no-envelope", action="store_true", help="only build with your flags")
     p.add_argument("--keep-build", help="keep build outputs in this directory")
     p.add_argument("--json", action="store_true", help="machine-readable output")
+    p.add_argument("--share", metavar="FILE",
+                   help="also write a result you can send to others: verdicts, bounds, versions and flags, "
+                        "with no source text, file paths or function names")
+    p.add_argument("--share-names", action="store_true",
+                   help="with --share: include function names (entry, measured function, per-function cycles)")
 
 
 def _percent(option: str):

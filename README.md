@@ -141,6 +141,12 @@ default to 100, and a part under your limit is still only "not ruled out":
 .\.venv\Scripts\mcu-ruleout.exe shortlist --example fir_f32 --deadline 100us --max-load 70
 ```
 
+To show someone a result without showing them your code, add `--share result.json`. The file
+holds the verdicts, the lower bounds, the floors, the limits, and the tool, table and toolchain
+versions. It holds no source text, no file or folder names, no include paths, no define names and
+no compiler messages, and a target spec of your own appears only as `custom-1`. Function names are
+left out unless you add `--share-names`. `memory` and `timing` take the same two options.
+
 ### One target in detail
 
 ```powershell
