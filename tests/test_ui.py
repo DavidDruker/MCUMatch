@@ -172,6 +172,67 @@ class TestChecksEndToEnd(UiServerCase):
         self.assertEqual(d["counts"], {"targets": 2, "ruled_out": 1, "not_ruled_out": 1, "no_verdict": 0})
         self.assertEqual(len(d["floors"]), 2)
 
+    @unittest.skipUnless(HAVE_UNICORN, "unicorn not installed")
+    def test_load_limit_rules_out_above_the_share_of_the_deadline(self):
+        _, plain = self.call("/api/timing", body=self.example())
+        micros = plain["time_lower_bound_s"] * 1e6 * 1.5  # the best case is two thirds of this deadline
+        body = self.example(deadline=f"{micros:.4f}", deadline_unit="us")
+        status, d = self.call("/api/timing", body=body)
+        self.assertEqual((status, d["ruled_out"], d["load_limit"]), (200, False, 1.0))
+        self.assertAlmostEqual(d["best_case_load"], 2 / 3, places=3)
+        status, d = self.call("/api/timing", body={**body, "max_load": "50"})
+        self.assertEqual(status, 200, d)
+        self.assertEqual(d["verdict"], "RULED OUT (timing, best case above your 50 % load limit)")
+        self.assertEqual((d["over_deadline"], d["load_limit"]), (False, 0.5))
+        status, d = self.call("/api/shortlist", body={**body, "max_load": "50", "targets": ["nrf52840", "atsamd51j19a"]})
+        self.assertEqual(status, 200, d)
+        rows = {r["target"]["id"]: r for r in d["rows"]}
+        self.assertEqual(rows["nrf52840"]["status"], "RULED OUT (timing: above 50 % load)")
+        self.assertFalse(rows["atsamd51j19a"]["ruled_out"])
+        self.assertEqual(d["limits"]["load"], 0.5)
+
+    def test_load_limit_is_validated(self):
+        status, d = self.call("/api/timing", body=self.example(deadline="1", deadline_unit="ms", max_load="150"))
+        self.assertEqual(status, 400)
+        self.assertIn("bad load limit", d["error"])
+        status, d = self.call("/api/shortlist", body=self.example(max_load="70", targets=["nrf52840"]))
+        self.assertEqual(status, 400)
+        self.assertIn("give a deadline too", d["error"])
+
+    @unittest.skipUnless(HAVE_UNICORN, "unicorn not installed")
+    def test_every_result_carries_a_shareable_copy_without_the_code(self):
+        files = [{"name": "zq_private.c", "content":
+                  "/* ZQ_SECRET_COMMENT */\nstatic int zq_table[8];\n"
+                  "__attribute__((noinline, noclone)) int fnq_kernel(int n)"
+                  " { int s = 0; for (int i = 0; i < n; i++) { zq_table[i % 8] += i; s += zq_table[i % 8]; } return s; }\n"
+                  "int fnq_bench(void) { return fnq_kernel(ZQ_COUNT); }\n"}]
+        body = self.example(files=files, entry="fnq_bench", measure="fnq_kernel", defines="ZQ_COUNT=40",
+                            deadline="1", deadline_unit="ms", targets=["nrf52840", "rp2040-pico"])
+        for route, kind in (("/api/shortlist", "shortlist"), ("/api/timing", "timing"), ("/api/memory", "memory")):
+            with self.subTest(route=route):
+                status, d = self.call(route, body=body)
+                self.assertEqual(status, 200, d)
+                shared = json.dumps(d["share"]).lower()
+                self.assertEqual(d["share"]["kind"], kind)
+                for private in ("zq", "fnq_"):
+                    self.assertNotIn(private, shared)
+                self.assertEqual(d["share"]["input"]["source_files"], 1)
+                self.assertFalse(d["share"]["redaction"]["function_names_included"])
+                self.assertIn("fnq_bench", json.dumps(d).replace(json.dumps(d["share"]), ""))  # the full reply names it
+
+    def test_targets_say_whether_a_person_checked_the_spec(self):
+        _, targets = self.call("/api/targets")
+        for t in targets:
+            self.assertIsInstance(t["checked_by_person"], bool)
+            self.assertIn("checked by a person" if t["checked_by_person"] else "not checked by a person", t["checked"])
+
+    def test_page_has_the_load_limit_the_mark_and_the_download(self):
+        _, page = self.call(f"/?token={TOKEN}", token=None)
+        self.assertIn('id="max-load"', page)
+        self.assertIn("Download shareable result", page)
+        self.assertIn("Spec not checked by a person", page)
+        self.assertIn("load, at least", page)
+
     def test_shortlist_rejects_unknown_targets_and_broken_code(self):
         status, d = self.call("/api/shortlist", body=self.example(targets=["nrf52840", "../x"]))
         self.assertEqual(status, 400)

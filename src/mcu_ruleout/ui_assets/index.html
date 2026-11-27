@@ -55,6 +55,7 @@
   .files .name { font: 13.5px var(--mono); flex: 1; min-width: 0; overflow-wrap: anywhere; }
   .files .size { color: var(--muted); font-size: 13px; white-space: nowrap; }
   .files button { padding: 1px 8px; }
+  button.share { margin-right: 8px; font-size: 14px; color: var(--ink); }
 
   #results { margin-top: 36px; display: grid; gap: 28px; }
   .result { border-top: 2px solid var(--ink); padding-top: 14px; }
@@ -129,6 +130,9 @@
 
   <details class="more">
     <summary>More options</summary>
+    <label for="max-load">Load limit <small>optional, % of the deadline</small></label>
+    <input type="number" id="max-load" min="0" max="100" step="any" placeholder="100">
+    <p class="hint">Also rules a target out when its best-case time is above this share of the deadline. A target under the limit is still only "not ruled out".</p>
     <label for="measure">Time only this function <small>leaves setup code out</small></label>
     <input type="text" class="code" id="measure" spellcheck="false" placeholder="same as the function to run">
     <label for="cflags">Compiler flags</label>
@@ -175,6 +179,27 @@ const bytes = (n) => n >= 1048576 ? scaled(n / 1048576, "MB")
 function dur(s) {
   const f = (v, unit) => v.toLocaleString("en-US", { maximumFractionDigits: 3 }) + " " + unit;
   return s < 1e-6 ? f(s * 1e9, "ns") : s < 1e-3 ? f(s * 1e6, "µs") : s < 1 ? f(s * 1e3, "ms") : f(s, "s");
+}
+
+// A lower bound on a share, rounded down so the figure shown never exceeds the bound.
+function atLeast(share) {
+  const pct = share * 100, digits = pct >= 1 ? 1 : 3, scale = 10 ** digits;
+  return (Math.floor(pct * scale) / scale).toLocaleString("en-US", { minimumFractionDigits: digits, maximumFractionDigits: digits }) + " %";
+}
+const pctOf = (share) => `${+(share * 100).toPrecision(6)} %`;
+const UNCHECKED = "Spec not checked by a person: its capacity and clock figures were read from the " +
+  "manufacturer's documents by an automated agent and may be wrong.";
+function shareButton(d) {
+  if (!d.share) return null;
+  const button = el("button", { type: "button", class: "share" }, "Download shareable result");
+  button.addEventListener("click", () => {
+    const url = URL.createObjectURL(new Blob([JSON.stringify(d.share, null, 2) + "\n"], { type: "application/json" }));
+    const link = el("a", { href: url, download: `mcu-ruleout-${d.share.kind}.json` });
+    document.body.append(link); link.click(); link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  });
+  return el("p", { class: "small" }, button,
+    " Verdicts, lower bounds and versions only. It holds no source text, no file names and no function names.");
 }
 
 // ---- files: chosen or dropped, read in the browser, sent as text ----
@@ -228,7 +253,8 @@ let targets = [];
 function showTarget() {
   const t = targets.find((x) => x.id === $("target").value);
   $("target-info").textContent = t
-    ? `${bytes(t.flash_bytes)} flash · ${bytes(t.ram_bytes)} RAM · ${t.max_clock_hz / 1e6} MHz · ${t.core}`
+    ? `${bytes(t.flash_bytes)} flash · ${bytes(t.ram_bytes)} RAM · ${t.max_clock_hz / 1e6} MHz · ${t.core}` +
+      (t.checked_by_person ? "" : " · spec not checked by a person")
     : `Checks every built-in target and strikes out the ones that cannot work.`;
 }
 $("target").addEventListener("change", showTarget);
@@ -239,7 +265,7 @@ function request() {
   return {
     target: $("target").value, files, entry: $("entry").value, measure: $("measure").value,
     cflags: $("cflags").value, defines: $("defines").value,
-    deadline: $("deadline").value, deadline_unit: $("deadline-unit").value,
+    deadline: $("deadline").value, deadline_unit: $("deadline-unit").value, max_load: $("max-load").value,
   };
 }
 async function run() {
@@ -285,6 +311,8 @@ function result(title, d, why, summary, details) {
     el("p", { class: "why" }, why),
     ...(d.cautions || []).map((c) => el("p", { class: "caution" }, c)),
     ...summary,
+    d.target && !d.target.checked_by_person ? el("p", { class: "small" }, UNCHECKED) : null,
+    shareButton(d),
     el("details", {}, el("summary", {}, "Details"), ...details,
       el("h3", {}, "Assumptions"), el("ul", {}, d.assumptions.map((a) => el("li", {}, a))),
       el("h3", {}, "Not modelled"), el("ul", {}, d.not_modeled.map((a) => el("li", {}, a))),
@@ -317,16 +345,22 @@ const SAME_BINARY = "The bound is for the binary built here: real hardware runni
 
 function timingResult(d) {
   const has = d.deadline_s !== null && d.deadline_s !== undefined;
+  const limited = has && d.load_limit < 1;
   const why = d.ruled_out
-    ? `Even in the best case it takes ${dur(d.time_lower_bound_s)}, longer than the ${dur(d.deadline_s)} deadline.`
-    : has ? "The best case is within the deadline, which proves nothing either way. " + SAME_BINARY
+    ? d.over_deadline
+      ? `Even in the best case it takes ${dur(d.time_lower_bound_s)}, longer than the ${dur(d.deadline_s)} deadline.`
+      : `Even in the best case it takes ${dur(d.time_lower_bound_s)}, above your ${pctOf(d.load_limit)} load limit ` +
+        `(${dur(d.allowed_time_s)} of the ${dur(d.deadline_s)} deadline). The best case does not exceed the deadline itself.`
+    : has ? `The best case is within the ${limited ? "load limit" : "deadline"}, which proves nothing either way. ` + SAME_BINARY
           : "No deadline was given, so nothing can be ruled out. " + SAME_BINARY;
   const classes = Object.entries(d.by_class).sort((a, b) => b[1].cycles - a[1].cycles)
     .map(([k, v]) => [k, num(v.instructions), num(v.cycles)]);
   const zero = Object.entries(d.undocumented_counted_as_zero);
   const origins = Object.entries(d.cycles_by_origin || {}).sort((a, b) => b[1] - a[1]);
   const summary = has
-    ? bar("Best-case time", d.time_lower_bound_s, d.deadline_s, dur)
+    ? [...bar("Best-case time", d.time_lower_bound_s, d.deadline_s, dur),
+       el("p", { class: "small" }, `Best-case load: at least ${atLeast(d.best_case_load)} of the deadline` +
+         (limited ? `; your limit is ${pctOf(d.load_limit)}.` : "."))]
     : [el("div", { class: "line" }, el("span", {}, "Best-case time"), el("span", {}, dur(d.time_lower_bound_s)))];
   return result("Timing", d, why, summary,
     [el("p", { class: "small" }, `${num(d.cycles_lower_bound)} cycles at ${d.clock_hz / 1e6} MHz, the target's highest rated clock. ` +
@@ -348,19 +382,22 @@ function shortlistResult(d) {
     const t = r.target, m = r.memory, tm = r.timing;
     const pick = el("button", { class: "link", type: "button", title: `Run both checks on ${t.id} alone` }, t.id);
     pick.addEventListener("click", () => { $("target").value = t.id; showTarget(); run(); });
-    const status = r.ruled_out ? `Ruled out: ${r.ruled_out_by.join(", ")}${r.depends_on_library ? " *" : ""}`
+    const status = r.ruled_out ? r.status.replace("RULED OUT (", "Ruled out: ").replace(/\)$/, "") + (r.depends_on_library ? " *" : "")
       : (m || tm) ? "Not ruled out" : "No verdict";
     return el("tr", { class: r.ruled_out ? "out" : "" },
-      el("td", {}, pick), el("td", { class: "status" }, status),
+      el("td", {}, pick, t.checked_by_person ? null : " ^"), el("td", { class: "status" }, status),
       el("td", {}, m ? `${bytes(m.lower_bounds.flash_bytes)} of ${bytes(t.flash_capacity_bytes)}` : "–"),
       el("td", {}, m ? `${bytes(m.lower_bounds.ram_bytes)} of ${bytes(t.ram_capacity_bytes)}` : "–"),
-      el("td", {}, tm ? `${dur(tm.time_lower_bound_s)} at ${t.max_clock_hz / 1e6} MHz` : "–"));
+      el("td", {}, tm ? `${dur(tm.time_lower_bound_s)} at ${t.max_clock_hz / 1e6} MHz` : "–"),
+      el("td", {}, tm && tm.best_case_load !== null ? atLeast(tm.best_case_load) : "–"));
   });
+  const limited = has && d.limits.load < 1;
   const errors = d.rows.flatMap((r) => r.errors.map((e) => `${r.target.id}: ${e}`));
   const floors = d.floors.map((f) => el("li", {}, `${f.core}: ` + [
     f.flash_bytes !== null ? `flash ${bytes(f.flash_bytes)}, RAM ${bytes(f.ram_bytes)}` : null,
     f.cycles !== null ? `${num(f.cycles)} cycles` : null,
-    f.required_clock_hz ? `so a clock above ${(f.required_clock_hz / 1e6).toLocaleString("en-US", { maximumFractionDigits: 1 })} MHz for the deadline` : null,
+    f.required_clock_hz ? `so a clock above ${(f.required_clock_hz / 1e6).toLocaleString("en-US", { maximumFractionDigits: 1 })} MHz ` +
+      (limited ? `at ${pctOf(d.limits.load)} load` : "for the deadline") : null,
   ].filter(Boolean).join("; ")));
   return el("section", { class: "result" },
     el("h2", {}, "Shortlist"),
@@ -371,15 +408,18 @@ function shortlistResult(d) {
     el("p", { class: "why" }, (c.not_ruled_out
       ? "The targets that are left are not shown to work. They could not be proven impossible, so measure on hardware."
       : "Every target that could be checked is ruled out.") +
-      (has ? "" : " No deadline was given, so only memory can rule a target out.")),
+      (has ? "" : " No deadline was given, so only memory can rule a target out.") +
+      (limited ? ` A target is also ruled out when its best-case time is above ${pctOf(d.limits.load)} of the deadline.` : "")),
     d.timing_skipped ? el("p", { class: "caution" }, "Timing was not checked: " + d.timing_skipped) : null,
     el("div", { class: "scroll" }, el("table", { class: "shortlist" },
-      el("thead", {}, el("tr", {}, ["target", "verdict", "flash, at least", "RAM, at least", "best-case time"].map((h) => el("th", {}, h)))),
+      el("thead", {}, el("tr", {}, ["target", "verdict", "flash, at least", "RAM, at least", "best-case time", "load, at least"].map((h) => el("th", {}, h)))),
       el("tbody", {}, rows))),
     d.rows.some((r) => r.depends_on_library) ? el("p", { class: "small" },
       "* Depends on library code: the rule-out would not stand if the toolchain's runtime library routines were " +
       "replaced by faster or smaller ones. Select the target name for the details.") : null,
+    d.rows.some((r) => !r.target.checked_by_person) ? el("p", { class: "small" }, "^ " + UNCHECKED) : null,
     errors.length ? el("pre", { class: "err" }, errors.join("\n")) : null,
+    shareButton(d),
     el("details", {}, el("summary", {}, "Details"),
       el("h3", {}, "Least that any part with the same core needs"), el("ul", {}, floors),
       el("h3", {}, "Assumptions"), el("ul", {}, [...d.assumptions.memory, ...d.assumptions.timing].map((a) => el("li", {}, a))),

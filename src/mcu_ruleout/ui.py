@@ -20,7 +20,8 @@ from importlib import resources
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from . import examples, report
+from . import examples, report, share
+from .limits import FULL, Limits, parse_percent
 from .memory import decide, measure_sources
 from .targets import builtin_target_paths, load_target
 from .toolchain import find_toolchain
@@ -145,6 +146,26 @@ def _deadline(body: dict) -> float | None:
         raise UiError(str(e)) from e
 
 
+def _load_limit(body: dict, deadline: float | None):
+    """The optional load limit, as a share of the deadline. Empty means the whole deadline."""
+    text = str(body.get("max_load") or "").strip()
+    if not text:
+        return FULL
+    try:
+        limit = parse_percent(text, "load limit")
+    except ValueError as e:
+        raise UiError(str(e)) from e
+    if limit != FULL and deadline is None:
+        raise UiError("a load limit is a share of the deadline, so give a deadline too")
+    return limit
+
+
+def _share_inputs(body: dict, sources: list[Path], flags: tuple[str, ...], defines: list[str]) -> share.Inputs:
+    """What the page sent, reduced to what a shareable result may hold. File names are not kept."""
+    return share.Inputs(n_sources=len(sources), user_flags=flags, n_defines=len(defines), n_includes=0,
+                        entry=None, measure=None)
+
+
 def api_memory(body: dict) -> dict:
     target, entry, flags, defines = _target(body), _symbol(body, "entry"), _flags(body), _defines(body)
     with tempfile.TemporaryDirectory(prefix="mcu-ruleout-ui-") as tmp:
@@ -160,7 +181,10 @@ def api_memory(body: dict) -> dict:
     inputs = {"sources": [s.name for s in sources], "entries": [entry], "user_flags": list(flags),
               "target_flags": list(target.gcc_flags), "defines": defines,
               "description": f"{', '.join(s.name for s in sources)}  entry={entry}"}
-    return report.memory_json(res, inputs, report.versions(tc.version()))
+    vers = report.versions(tc.version())
+    out = report.memory_json(res, inputs, vers)
+    out["share"] = share.memory_share(res, vers, _share_inputs(body, sources, flags, defines))
+    return out
 
 
 def api_timing(body: dict) -> dict:
@@ -169,6 +193,7 @@ def api_timing(body: dict) -> dict:
     target, entry, flags, defines = _target(body), _symbol(body, "entry"), _flags(body), _defines(body)
     measure = _symbol(body, "measure", required=False)
     deadline = _deadline(body)
+    load_limit = _load_limit(body, deadline)
     with tempfile.TemporaryDirectory(prefix="mcu-ruleout-ui-") as tmp:
         src = Path(tmp) / "src"
         src.mkdir()
@@ -178,9 +203,12 @@ def api_timing(body: dict) -> dict:
             builds = T.measure_sources(tc, target, sources, entry, measure, flags, Path(tmp) / "build", [src], defines)
     if not any(b.ok for b in builds):
         raise UiError(builds[0].error.replace(" | ", "\n"))
-    res = T.decide(target, builds, deadline)
+    res = T.decide(target, builds, deadline, load_limit)
     built = f"{', '.join(s.name for s in sources)}  flags={' '.join(target.gcc_flags + flags)}"
-    return report.timing_json(res, built, (), report.versions(tc.version(), res.trace.unicorn_model))
+    vers = report.versions(tc.version(), res.trace.unicorn_model)
+    out = report.timing_json(res, built, (), vers)
+    out["share"] = share.timing_share(res, vers, _share_inputs(body, sources, flags, defines))
+    return out
 
 
 def api_shortlist(body: dict) -> dict:
@@ -194,6 +222,7 @@ def api_shortlist(body: dict) -> dict:
     entry, flags, defines = _symbol(body, "entry"), _flags(body), _defines(body)
     measure = _symbol(body, "measure", required=False)
     deadline = _deadline(body)
+    limits = Limits(load=_load_limit(body, deadline))
     with tempfile.TemporaryDirectory(prefix="mcu-ruleout-ui-") as tmp:
         src = Path(tmp) / "src"
         src.mkdir()
@@ -201,7 +230,7 @@ def api_shortlist(body: dict) -> dict:
         tc = find_toolchain()
         with _RUN_LOCK:
             sl = S.run(tc, [load_target(paths[t]) for t in wanted], sources, entry, measure, flags,
-                       Path(tmp) / "build", [src], defines, deadline)
+                       Path(tmp) / "build", [src], defines, deadline, limits=limits)
     if not sl.ruled_out and not sl.remaining:
         failed = [m.error for g in sl.groups for m in g.measurements if not m.ok]
         errors = [e for r in sl.rows for e in r.errors]
@@ -212,7 +241,10 @@ def api_shortlist(body: dict) -> dict:
               "user_flags": list(flags), "defines": defines,
               "description": f"{', '.join(s.name for s in sources)}  entry={entry}"}
     models = sorted({b.cost.trace.unicorn_model for g in sl.groups for b in g.builds if b.ok})
-    return report.shortlist_json(sl, inputs, report.versions(tc.version(), ", ".join(models) or None))
+    vers = report.versions(tc.version(), ", ".join(models) or None)
+    out = report.shortlist_json(sl, inputs, vers)
+    out["share"] = share.shortlist_share(sl, vers, _share_inputs(body, sources, flags, defines))
+    return out
 
 
 class _Handler(BaseHTTPRequestHandler):
