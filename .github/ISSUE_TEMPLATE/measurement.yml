@@ -1,0 +1,75 @@
+name: Submit a measurement
+description: A hardware measurement taken with the measurement kit.
+labels: ["validation", "kit"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. Read docs/MEASURE.md first. A measurement counts only with all three of: the
+        measurement file, the exact ELF that was flashed, and the register readout (which is
+        inside the measurement file). It is verified here by running `mcu-ruleout compare` on your
+        ELF.
+
+        A measurement that shows the tool's bound to be too high is the most valuable kind. It
+        will not be dropped or edited.
+  - type: input
+    id: board
+    attributes:
+      label: Board and exact part number
+      description: For example "Nucleo-G031K8, STM32G031K8T6".
+    validations:
+      required: true
+  - type: input
+    id: kernel
+    attributes:
+      label: Kernel id
+      description: From kit/kernels.toml, for example fir_q15-64x16.
+    validations:
+      required: true
+  - type: dropdown
+    id: setup
+    attributes:
+      label: Setup
+      options:
+        - Zero wait states (a low clock, or code in RAM)
+        - Maximum rated clock with the vendor's default flash settings
+        - Another setup (describe it below)
+    validations:
+      required: true
+  - type: textarea
+    id: files
+    attributes:
+      label: The measurement file and the ELF
+      description: Attach the `.json` written by `mcu-ruleout measurement import` and the `.elf` next to it (zip them if the upload refuses the file type).
+    validations:
+      required: true
+  - type: textarea
+    id: compare
+    attributes:
+      label: Output of `mcu-ruleout compare --elf <file>.elf --measurement <file>.json`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: port
+    attributes:
+      label: The board port
+      description: A link to the port's source, or "the port in this repository at commit ...".
+    validations:
+      required: true
+  - type: textarea
+    id: how
+    attributes:
+      label: How the result was read off the board
+      description: The probe and tool (for example pyOCD savemem) or the serial capture.
+  - type: checkboxes
+    id: rules
+    attributes:
+      label: Confirm
+      options:
+        - label: The port does not write option bytes, security bits, protection registers or fuses.
+          required: true
+        - label: The measurement was taken after the pre-registration was in force, or I understand it will be kept apart from the validation.
+          required: true
+        - label: I submit this measurement under CC-BY-4.0 (Developer Certificate of Origin).
+          required: true

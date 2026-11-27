@@ -1,0 +1,34 @@
+# How to cite this tool and its dataset. See https://citation-file-format.github.io/
+cff-version: 1.2.0
+message: >-
+  If you use this tool or its dataset, please cite it as below, with the version or commit you
+  used. The timing bound has not been validated against hardware (N = 0); say so if you rely on it.
+title: "mcu-ruleout: best-case rule-outs for C kernels on Cortex-M0+ and Cortex-M4F microcontrollers"
+type: software
+authors:
+  # As the name appears in LICENSE. Replace with given-names and family-names if you prefer.
+  - name: "DavidDruker"
+version: 0.2.0.dev0
+license: MIT
+repository-code: "https://github.com/DavidDruker/MCUMatch"
+abstract: >-
+  A command-line tool that says when a C kernel cannot fit or cannot meet a deadline on a
+  Cortex-M0+ or Cortex-M4F microcontroller, even in the best case. It compares a lower bound on
+  what the code needs (the smallest build, and the documented minimum cycle count of every executed
+  instruction) with an upper bound on what the part offers (cited capacities and the maximum rated
+  clock). It never says that code fits. The repository also holds a dataset of published timing
+  measurements with their configurations, and a pre-registered validation.
+keywords:
+  - cortex-m
+  - embedded
+  - microcontroller
+  - lower bound
+  - execution time
+  - static analysis
+references:
+  - type: dataset
+    title: "Published timing measurements of DSP and control kernels on Cortex-M0+ and Cortex-M4F"
+    authors:
+      - name: "DavidDruker"
+    license: CC-BY-4.0
+    notes: "data/published_measurements.csv and data/sources.csv in this repository. Each source keeps its own terms."

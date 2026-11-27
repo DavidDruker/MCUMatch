@@ -1,0 +1,72 @@
+name: Rule-out story
+description: Tell us whether the tool removed a part you were considering, or failed to.
+labels: ["study"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        This is for the study of whether rule-outs change real decisions
+        (docs/study/DECISIVENESS_PROTOCOL.md). This issue is public. Do not post code, part
+        numbers or project details you are not allowed to share. If you would rather not post in
+        public, the protocol says how to send the same answers privately.
+
+        Run the tool on your own machine with `--share result.json`. That file holds verdicts,
+        bounds and versions, and no source text, file names or function names.
+  - type: textarea
+    id: project
+    attributes:
+      label: The kernel and the deadline, in a sentence
+      description: For example "a 64-tap float FIR on 256 samples that must finish in 500 µs". No code needed.
+    validations:
+      required: true
+  - type: dropdown
+    id: when
+    attributes:
+      label: Is this a current choice or a past one?
+      options:
+        - A choice I am making now
+        - A past project, where I know how it turned out
+    validations:
+      required: true
+  - type: textarea
+    id: considered
+    attributes:
+      label: Which parts were you seriously considering?
+      description: Before you ran the tool. Family names are enough if you cannot name the parts.
+    validations:
+      required: true
+  - type: textarea
+    id: ruled_out
+    attributes:
+      label: Which of those did the tool rule out?
+      description: At 100 % and at your usual load limit (`--max-load`). Say which limit you used.
+    validations:
+      required: true
+  - type: dropdown
+    id: knew
+    attributes:
+      label: For the parts it ruled out, did you already know they could not work?
+      options:
+        - No part I was considering was ruled out
+        - Yes, I already knew for all of them
+        - I already knew for some of them
+        - No, at least one rule-out was news to me
+    validations:
+      required: true
+  - type: textarea
+    id: outcome
+    attributes:
+      label: What did you choose in the end, and did the result change anything?
+    validations:
+      required: true
+  - type: textarea
+    id: share
+    attributes:
+      label: The shared result
+      description: Paste the contents of the `--share` file, or attach it.
+      render: json
+  - type: textarea
+    id: wrong
+    attributes:
+      label: Was anything wrong, unclear or missing?
+      description: A part you needed that is not in the catalogue, a message that confused you, a verdict you do not believe.

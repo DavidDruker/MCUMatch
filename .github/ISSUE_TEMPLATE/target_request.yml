@@ -1,0 +1,48 @@
+name: Target request
+description: Ask for a microcontroller to be added to the built-in catalogue.
+labels: ["catalogue", "good first issue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Only Cortex-M0+ and Cortex-M4F parts can be added today. The method needs Arm's
+        per-instruction cycle tables, and it has them for these two cores only.
+
+        You can use a part right now without waiting: write a spec file and pass its path to
+        `--target`. docs/TARGETS.md explains how. If you do, please send it with the
+        "Target spec submission" form.
+  - type: input
+    id: part
+    attributes:
+      label: Exact part number
+      description: With the memory and package suffix, for example STM32G031K8T6.
+    validations:
+      required: true
+  - type: dropdown
+    id: core
+    attributes:
+      label: Core
+      options:
+        - Cortex-M0+
+        - Cortex-M4 with FPU (Cortex-M4F)
+        - Another core (not supported yet; the request will be kept for later)
+    validations:
+      required: true
+  - type: input
+    id: document
+    attributes:
+      label: Link to the manufacturer's datasheet or reference manual
+      description: On the manufacturer's own site.
+    validations:
+      required: true
+  - type: input
+    id: board
+    attributes:
+      label: A common board with this part, if there is one
+  - type: checkboxes
+    id: help
+    attributes:
+      label: Can you help?
+      options:
+        - label: I can write the spec myself and check it against the rendered pages.
+        - label: I own a board with this part and could take a measurement.

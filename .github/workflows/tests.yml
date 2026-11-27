@@ -8,19 +8,24 @@ on:
 permissions:
   contents: read
 
-env:
-  # Same compiler release as development (Arm GNU Toolchain 14.2.Rel1). Checksum from Arm's
-  # published .sha256asc file for this archive.
-  TOOLCHAIN_URL: https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel/arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
-  TOOLCHAIN_SHA256: 62a63b981fe391a9cbad7ef51b17e49aeaa3e7b0d029b36ca1e9c3b2a9b78823
-
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: ${{ matrix.os }}, Python ${{ matrix.python }}
+    runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false
       matrix:
-        python: ["3.11", "3.14"]
+        os: [ubuntu-latest]
+        python: ["3.11", "3.12", "3.13", "3.14"]
+        include:
+          # The oldest and the newest supported Python on the other two systems.
+          - { os: windows-latest, python: "3.11" }
+          - { os: windows-latest, python: "3.14" }
+          - { os: macos-14, python: "3.11" }
+          - { os: macos-14, python: "3.14" }
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
 
@@ -28,28 +33,7 @@ jobs:
         with:
           python-version: ${{ matrix.python }}
 
-      - name: Cache the Arm GNU Toolchain
-        id: toolchain
-        uses: actions/cache@v4
-        with:
-          path: ~/arm-gnu-toolchain
-          key: arm-gnu-toolchain-14.2.rel1-x86_64
-
-      - name: Download and verify the toolchain
-        if: steps.toolchain.outputs.cache-hit != 'true'
-        run: |
-          curl -fsSL -o toolchain.tar.xz "$TOOLCHAIN_URL"
-          echo "$TOOLCHAIN_SHA256  toolchain.tar.xz" | sha256sum -c -
-          mkdir -p ~/arm-gnu-toolchain
-          tar -xf toolchain.tar.xz -C ~/arm-gnu-toolchain --strip-components=1
-
-      - name: Put the toolchain on PATH
-        run: echo "$HOME/arm-gnu-toolchain/bin" >> "$GITHUB_PATH"
-
-      - name: Show tool versions
-        run: |
-          arm-none-eabi-gcc --version | head -n 1
-          python --version
+      - uses: ./.github/actions/arm-toolchain
 
       - name: Install the package with the emulator extra
         run: python -m pip install -e ".[emu]"
@@ -62,3 +46,61 @@ jobs:
 
       - name: Check the dataset
         run: python -m mcu_ruleout dataset data
+
+      - name: Dry run of the validation runner on made-up rows
+        if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
+        run: python validation/dry_run_v2.py
+
+  package:
+    name: build the package and use it from a clean install
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/arm-toolchain
+
+      - name: Build the sdist and the wheel
+        run: |
+          python -m pip install build twine
+          python -m build
+          python -m twine check dist/*
+
+      - name: Install the wheel into a clean environment
+        run: |
+          python -m venv "$RUNNER_TEMP/clean"
+          "$RUNNER_TEMP/clean/bin/python" -m pip install "$(ls dist/*.whl)[emu]"
+
+      # Run from another folder, so nothing can be picked up from the checkout by accident.
+      - name: The installed tool has its targets, cycle tables, examples and web page
+        working-directory: ${{ runner.temp }}
+        run: |
+          clean="$RUNNER_TEMP/clean/bin"
+          "$clean/python" - <<'PY'
+          from importlib import resources
+          import mcu_ruleout
+          from mcu_ruleout.cycles import CycleModel
+          from mcu_ruleout.examples import all_examples
+          from mcu_ruleout.targets import SUPPORTED_CORES, builtin_target_paths
+
+          root = resources.files("mcu_ruleout")
+          assert "site-packages" in str(root), f"not the installed copy: {root}"
+          assert len(builtin_target_paths()) >= 11, "target specs are missing from the wheel"
+          assert len(all_examples()) >= 6, "examples are missing from the wheel"
+          for core in SUPPORTED_CORES:
+              CycleModel(core)  # reads the cycle table
+          assert root.joinpath("ui_assets", "index.html").is_file(), "the web page is missing from the wheel"
+          assert root.joinpath("data", "kernel.ld").is_file(), "the link script is missing from the wheel"
+          print("package data ok:", mcu_ruleout.__version__)
+          PY
+          "$clean/mcu-ruleout" doctor
+          "$clean/mcu-ruleout" targets
+          "$clean/mcu-ruleout" shortlist --example fir_q15 --deadline 100us --max-load 70 --share shared.json
+          "$clean/mcu-ruleout" new my_kernel
+          "$clean/mcu-ruleout" shortlist my_kernel.c --entry bench_my_kernel --measure my_kernel --deadline 100us

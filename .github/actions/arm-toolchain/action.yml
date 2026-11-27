@@ -1,0 +1,70 @@
+name: Arm GNU Toolchain
+description: >-
+  Download Arm GNU Toolchain 14.2.Rel1 (arm-none-eabi) for this runner, verify it against Arm's
+  published SHA-256, unpack it, and point the tool at it with MCU_RULEOUT_TOOLCHAIN.
+
+# The same compiler release as development. Each checksum is the content of Arm's own
+# `<archive>.sha256asc` file, read on 2026-11-27. A mismatch fails the job; nothing unverified is run.
+runs:
+  using: composite
+  steps:
+    - name: Pick the archive for this runner
+      id: pick
+      shell: bash
+      run: |
+        base=https://developer.arm.com/-/media/Files/downloads/gnu/14.2.rel1/binrel
+        case "${RUNNER_OS}-${RUNNER_ARCH}" in
+          Linux-X64)
+            file=arm-gnu-toolchain-14.2.rel1-x86_64-arm-none-eabi.tar.xz
+            sha=62a63b981fe391a9cbad7ef51b17e49aeaa3e7b0d029b36ca1e9c3b2a9b78823 ;;
+          Windows-X64)
+            file=arm-gnu-toolchain-14.2.rel1-mingw-w64-x86_64-arm-none-eabi.zip
+            sha=f074615953f76036e9a51b87f6577fdb4ed8e77d3322a6f68214e92e7859888f ;;
+          macOS-ARM64)
+            file=arm-gnu-toolchain-14.2.rel1-darwin-arm64-arm-none-eabi.tar.xz
+            sha=c7c78ffab9bebfce91d99d3c24da6bf4b81c01e16cf551eb2ff9f25b9e0a3818 ;;
+          *)
+            echo "no toolchain archive is pinned for ${RUNNER_OS}-${RUNNER_ARCH}" >&2
+            exit 1 ;;
+        esac
+        echo "file=$file" >> "$GITHUB_OUTPUT"
+        echo "sha=$sha" >> "$GITHUB_OUTPUT"
+        echo "url=$base/$file" >> "$GITHUB_OUTPUT"
+
+    - name: Cache the unpacked toolchain
+      id: cache
+      uses: actions/cache@v4
+      with:
+        path: ~/arm-gnu-toolchain
+        key: arm-gnu-toolchain-${{ steps.pick.outputs.sha }}
+
+    - name: Download, verify and unpack
+      if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      run: |
+        curl -fsSL -o "$RUNNER_TEMP/toolchain-archive" "${{ steps.pick.outputs.url }}"
+        python - "$RUNNER_TEMP/toolchain-archive" "${{ steps.pick.outputs.sha }}" <<'PY'
+        import hashlib, sys
+        digest = hashlib.sha256()
+        with open(sys.argv[1], "rb") as f:
+            for block in iter(lambda: f.read(1 << 20), b""):
+                digest.update(block)
+        if digest.hexdigest() != sys.argv[2]:
+            sys.exit(f"checksum mismatch: got {digest.hexdigest()}, expected {sys.argv[2]}")
+        print("checksum ok")
+        PY
+        mkdir -p "$HOME/arm-gnu-toolchain"
+        case "${{ steps.pick.outputs.file }}" in
+          *.zip) 7z x -y -o"$HOME/arm-gnu-toolchain" "$RUNNER_TEMP/toolchain-archive" > /dev/null ;;
+          *) tar -xf "$RUNNER_TEMP/toolchain-archive" -C "$HOME/arm-gnu-toolchain" ;;
+        esac
+
+    - name: Point the tool at the compiler
+      shell: bash
+      run: |
+        gcc=$(find "$HOME/arm-gnu-toolchain" -path '*/bin/arm-none-eabi-gcc*' ! -name '*-*-*-*-*' | head -n 1)
+        if [ -z "$gcc" ]; then echo "arm-none-eabi-gcc not found in the unpacked archive" >&2; exit 1; fi
+        bin=$(dirname "$gcc")
+        if command -v cygpath > /dev/null; then bin=$(cygpath -w "$bin"); fi
+        echo "MCU_RULEOUT_TOOLCHAIN=$bin" >> "$GITHUB_ENV"
+        "$gcc" --version | head -n 1

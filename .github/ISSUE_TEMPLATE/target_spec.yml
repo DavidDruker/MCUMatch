@@ -1,0 +1,54 @@
+name: Target spec submission
+description: Submit a spec file you wrote for a part.
+labels: ["catalogue"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you. A pull request that adds the file to `src/mcu_ruleout/targets/` is even
+        better. Read docs/TARGETS.md and the "Adding a target" part of CONTRIBUTING.md first.
+  - type: textarea
+    id: spec
+    attributes:
+      label: The spec file
+      description: Paste the whole `.toml` file.
+      render: toml
+    validations:
+      required: true
+  - type: dropdown
+    id: checked
+    attributes:
+      label: How were the numbers checked?
+      description: Be exact. A spec is shown as "checked by a person" only if a person did the check.
+      options:
+        - I opened every cited page in the rendered document and confirmed each number, unit and page.
+        - I read the numbers myself but did not check every cited page.
+        - A script or a language model extracted them and I have not checked them.
+    validations:
+      required: true
+  - type: textarea
+    id: documents
+    attributes:
+      label: Documents used
+      description: Title, revision and link for each, from the manufacturer's own site.
+    validations:
+      required: true
+  - type: textarea
+    id: output
+    attributes:
+      label: Output of `mcu-ruleout targets path/to/your-spec.toml`
+      render: text
+    validations:
+      required: true
+  - type: textarea
+    id: notes
+    attributes:
+      label: Anything the document left unclear
+      description: For example a clock that needs a special mode, RAM usable only in some configurations, or sizes that differ by package.
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Sign-off
+      options:
+        - label: I wrote this spec, or have the right to submit it, and I submit it under the project's MIT licence (Developer Certificate of Origin).
+          required: true
