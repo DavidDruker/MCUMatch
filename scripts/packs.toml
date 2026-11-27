@@ -1,0 +1,74 @@
+# The vendor device family packs that scripts/check_against_packs.py compares the target specs
+# with, pinned by version. scripts/fetch_packs.py downloads them into packs/, which Git ignores.
+#
+# Names, versions and addresses are from the public CMSIS pack index
+# (https://www.keil.com/pack/index.pidx), read on 2026-11-27. A pack's file is
+# <url><vendor>.<name>.<version>.pack.
+#
+# `sha256` pins the file. An entry without one is downloaded and its hash is printed, so that it
+# can be pinned here after the first run.
+#
+# A pack is a cross-check, never a source: see docs/CATALOGUE_CHECK.md.
+
+[[pack]]
+vendor = "AmbiqMicro"
+name = "Apollo_DFP"
+version = "1.6.0"
+url = "https://download.ambiq.com/packs/"
+specs = ["apollo3-blue"]
+
+[[pack]]
+vendor = "Microchip"
+name = "SAMD21_DFP"
+version = "3.9.287"
+url = "https://packs.download.microchip.com/"
+specs = ["atsamd21g18a"]
+
+[[pack]]
+vendor = "Microchip"
+name = "SAMD51_DFP"
+version = "3.10.283"
+url = "https://packs.download.microchip.com/"
+specs = ["atsamd51j19a"]
+
+[[pack]]
+vendor = "NXP"
+name = "MK64F12_DFP"
+version = "14.0.0"
+url = "https://mcuxpresso.nxp.com/cmsis_pack/repo/"
+specs = ["mk64fn1m0vll12"]
+
+[[pack]]
+vendor = "NXP"
+name = "MKL26Z4_DFP"
+version = "10.0.3"
+url = "https://mcuxpresso.nxp.com/cmsis_pack/repo/"
+specs = ["mkl26z64vft4"]
+
+[[pack]]
+vendor = "TexasInstruments"
+name = "MSPM0G1X0X_G3X0X_DFP"
+version = "1.3.1"
+url = "https://software-dl.ti.com/msp430/esd/MSPM0-CMSIS/MSPM0G1X0X_G3X0X/latest/exports/"
+specs = ["mspm0g3507"]
+
+[[pack]]
+vendor = "NordicSemiconductor"
+name = "nRF_DeviceFamilyPack"
+version = "8.44.1"
+url = "https://developer.nordicsemi.com/nRF5_SDK/pieces/nRF_DeviceFamilyPack/"
+specs = ["nrf52832", "nrf52833", "nrf52840"]
+
+[[pack]]
+vendor = "RaspberryPi"
+name = "RP2xxx_DFP"
+version = "0.9.5"
+url = "https://github.com/raspberrypi/cmsis-rp2xxx-dfp/releases/download/v0.9.5/"
+specs = ["rp2040-pico"]
+
+[[pack]]
+vendor = "Keil"
+name = "TM4C_DFP"
+version = "1.1.0"
+url = "https://www.keil.com/pack/"
+specs = ["tm4c123gh6pm"]

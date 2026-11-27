@@ -1,0 +1,67 @@
+name: pack cross-check
+
+# Roadmap task 1.7. Downloads the pinned vendor device family packs (scripts/packs.toml) and
+# compares every built-in target spec's flash, RAM and maximum clock with them.
+#
+# A pack is a cross-check, never a source. A difference is a finding for a person to explain by
+# re-reading the datasheet, so this workflow does not fail on one. It fails only when a pack
+# cannot be fetched or does not match its pinned checksum. Nothing from a pack is committed.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - "scripts/check_against_packs.py"
+      - "scripts/fetch_packs.py"
+      - "scripts/packs.toml"
+      - "scripts/pack_devices.toml"
+      - "src/mcu_ruleout/targets/**"
+      - ".github/workflows/packs.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  cross-check:
+    name: specs against vendor packs
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install the package
+        run: python -m pip install -e .
+
+      - name: Fetch the pinned packs
+        run: |
+          set +e
+          python scripts/fetch_packs.py | tee fetch.txt
+          status=${PIPESTATUS[0]}
+          python .github/scripts/annotate_failures.py --notice "Packs fetched" fetch.txt
+          exit "$status"
+
+      - name: Compare every built-in spec with its pack
+        if: always()
+        run: |
+          set +e
+          python scripts/check_against_packs.py --compact > compact.txt 2> summary.txt
+          cat compact.txt summary.txt
+          python .github/scripts/annotate_failures.py --notice "Specs against packs" compact.txt
+          python scripts/check_against_packs.py --markdown > table.md 2> /dev/null
+          exit 0
+
+      - name: Keep the tables with the run
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pack-cross-check
+          path: |
+            table.md
+            compact.txt
+            fetch.txt

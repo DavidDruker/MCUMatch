@@ -1,14 +1,15 @@
 """Cross-check the target specs against vendor CMSIS device family packs.
 
-    python scripts/check_against_packs.py [--packs packs] [--markdown] [SPEC_ID ...]
+    python scripts/check_against_packs.py [--packs packs] [--markdown | --compact] [SPEC_ID ...]
 
 A pack is a cross-check, never a source. A difference means "re-read the datasheet", not "copy
 the pack": packs describe a default configuration, while a spec takes the most generous figure the
 datasheet allows (conditional RAM regions, special clock modes).
 
-Download the packs by hand (https://www.keil.arm.com/packs/ or the vendor's site). A `.pack` file
-is a zip archive: either unzip it or leave it as it is; this script reads the `.pdsc` inside both.
-Put them in `packs/`, which Git ignores.
+`python scripts/fetch_packs.py` downloads the pinned packs listed in scripts/packs.toml into
+`packs/`, which Git ignores. You can also put packs there by hand (https://www.keil.arm.com/packs/ or
+the vendor's site). A `.pack` file is a zip archive: either unzip it or leave it as it is; this
+script reads the `.pdsc` inside both.
 
 `scripts/pack_devices.toml` says which pack device each spec corresponds to, and records every
 difference that has been explained after re-reading the datasheet. An explained difference pins
@@ -128,6 +129,17 @@ def find_device(devices: list[PackDevice], pattern: str) -> PackDevice | None:
     return max(hits, key=lambda d: (len(d.memories), d.clock_hz is not None), default=None)
 
 
+def similar_names(devices: list[PackDevice], pattern: str, limit: int = 8) -> list[str]:
+    """Device names that share their first letters and digits with the pattern, to correct it from."""
+    key = "".join(ch for ch in pattern.lower() if ch.isalnum())
+    for length in (8, 6, 5, 4):
+        hits = sorted({d.name for d in devices
+                       if "".join(ch for ch in d.name.lower() if ch.isalnum()).startswith(key[:length])})
+        if hits and len(key) >= length:
+            return hits[:limit]
+    return []
+
+
 @dataclass
 class Line:
     spec: str
@@ -149,6 +161,9 @@ def compare(target, entry: dict, devices: list[PackDevice]) -> list[Line]:
     if device is None:
         why = (f"no pack device matches {pattern!r}" if pattern
                else "no 'device' pattern in scripts/pack_devices.toml")
+        near = similar_names(devices, pattern or target.id)
+        if near:
+            why += "; names in the packs that look close: " + ", ".join(near)
         return [Line(target.id, q, spec_values[q], None, "no device", why) for q in QUANTITIES]
     explained = entry.get("explained", {})
     out = []
@@ -183,6 +198,28 @@ def render(lines: list[Line], markdown: bool) -> str:
     return "\n".join("  ".join(c.ljust(w) for c, w in zip(r, widths)).rstrip() for r in [head] + rows)
 
 
+def render_compact(lines: list[Line]) -> str:
+    """One line per spec: short enough for a CI annotation."""
+    out = []
+    for spec in dict.fromkeys(ln.spec for ln in lines):
+        mine = [ln for ln in lines if ln.spec == spec]
+        if all(ln.status == "no device" for ln in mine):
+            out.append(f"{spec}: NO DEVICE. {mine[0].detail}")
+            continue
+        parts = []
+        for ln in mine:
+            if ln.status == "same":
+                parts.append(f"{ln.quantity} same ({_fmt(ln.quantity, ln.spec_value)})")
+            elif ln.status == "not in pack":
+                parts.append(f"{ln.quantity} not in pack (spec {_fmt(ln.quantity, ln.spec_value)})")
+            else:
+                parts.append(f"{ln.quantity} {ln.status}: spec {_fmt(ln.quantity, ln.spec_value)}, "
+                             f"pack {_fmt(ln.quantity, ln.pack_value)}")
+        where = next((ln.detail.split(":")[0] for ln in mine if ln.status in ("same", "not in pack", "DIFFERENT")), "")
+        out.append(f"{spec} [{where}]: " + "; ".join(parts))
+    return "\n".join(out)
+
+
 def main(argv: list[str] | None = None) -> int:
     sys.path.insert(0, str(ROOT / "src"))
     from mcu_ruleout.targets import builtin_target_paths, find_target, load_target
@@ -192,6 +229,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--packs", default=str(ROOT / "packs"), help="folder with .pdsc or .pack files (default: packs/)")
     ap.add_argument("--map", default=str(ROOT / "scripts" / "pack_devices.toml"), help="spec-to-device mapping file")
     ap.add_argument("--markdown", action="store_true", help="print a Markdown table for docs/CATALOGUE_CHECK.md")
+    ap.add_argument("--compact", action="store_true", help="print one line per spec")
     args = ap.parse_args(argv)
 
     folder = Path(args.packs)
@@ -209,7 +247,7 @@ def main(argv: list[str] | None = None) -> int:
     targets = ([find_target(s) for s in args.specs] if args.specs
                else [load_target(p) for p in builtin_target_paths().values()])
     lines = [ln for t in targets for ln in compare(t, mapping.get(t.id, {}), devices)]
-    print(render(lines, args.markdown))
+    print(render_compact(lines) if args.compact else render(lines, args.markdown))
     bad = [ln for ln in lines if ln.needs_attention]
     print(f"\n{len(devices)} pack devices read. {len(lines) - len(bad)} of {len(lines)} comparisons need no action; "
           f"{len(bad)} need attention.", file=sys.stderr)

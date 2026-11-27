@@ -121,6 +121,19 @@ class TestComparison(unittest.TestCase):
                 got = self.statuses(entry)
                 self.assertTrue(all(ln.status == "no device" and ln.needs_attention for ln in got.values()))
 
+    def test_a_wrong_pattern_gets_the_names_that_look_close(self):
+        got = self.statuses({"device": "TINYM0-HUGE"})
+        self.assertEqual(got["flash"].status, "no device")
+        self.assertIn("names in the packs that look close: TINYM0, TINYM0-BIG", got["flash"].detail)
+        self.assertEqual(packs.similar_names(self.devices, "zzz"), [])
+
+    def test_compact_output_is_one_line_per_spec(self):
+        text = packs.render_compact(packs.compare(TINY, {"device": "TINYM0"}, self.devices))
+        self.assertEqual(text, "tiny-m0plus [TINYM0 in tiny.pdsc]: flash same (4,096 B); "
+                               "ram DIFFERENT: spec 8,192 B, pack 6,144 B; clock same (48 MHz)")
+        text = packs.render_compact(packs.compare(TINY, {"device": "NOPE"}, self.devices))
+        self.assertTrue(text.startswith("tiny-m0plus: NO DEVICE. no pack device matches 'NOPE'"))
+
     def test_a_quantity_the_pack_does_not_give_is_not_a_difference(self):
         text = PDSC_NEW.replace(' Dclock="48000000"', "")
         got = {ln.quantity: ln for ln in packs.compare(TINY, {"device": "TINYM0"}, packs.parse_pdsc(text, "x"))}
