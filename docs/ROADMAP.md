@@ -39,6 +39,18 @@ in the open-source release depends on it.
 | Repo name | GitHub repo is `MCUMatch`; the package is `mcu-ruleout` |
 | Spend so far | Zero. No boards bought |
 
+**Update, 2026-11-27.** The table above is the state the plan started from. Since then, everything
+that needs no person, board, login or publishing step has been done: phase 0 (except the decisions
+and the rename), task 1.1, phase 3, and the software halves of phases 4 to 7. The progress log
+(section 12) lists each task with its commit, and
+[docs/study/READINESS.md](study/READINESS.md) walks through the entry criteria of the test:
+**1 of 7 is met.** Nothing has been pushed, so CI has not run on any of it. Spend is still zero.
+
+One result bears on section 11. The kernel zoo ([docs/study/KERNEL_ZOO.md](study/KERNEL_ZOO.md))
+found that 81 of 86 rule-outs at 100 % load, on this project's own kernels, are timing rule-outs of
+float code on a part without an FPU, and that no Cortex-M4F part is ruled out for any kernel. That
+is the situation section 11's second bullet describes. It is a proxy, not Gate 2.
+
 ---
 
 ## 2. Goal, definition of done, and ground rules
@@ -338,7 +350,7 @@ exact binary the tool traces. This is what turns N = 0 into N > 0.
 ELF with `--elf` (task 3.7). The comparison is cycle for cycle on identical machine code and
 identical input data, so compiler, library and input differences cannot creep in.
 
-- [ ] **4.1 Design document `docs/MEASURE.md`.** (M) Defines, before any code:
+- [x] **4.1 Design document `docs/MEASURE.md`.** (M) Defines, before any code:
   - **Timed region:** read the counter, call the measured function, read the counter.
   - **Overhead:** measure an empty `noinline` function with the same signature the same way; the
     pre-registration (5.1) states how this overhead is handled. Report raw and corrected numbers.
@@ -353,14 +365,16 @@ identical input data, so compiler, library and input differences cannot creep in
     the bound is. A maximum-clock setup with the vendor's default flash settings tests the time
     claim users actually rely on. Measure both where possible.
   - **The kit never writes option bytes, security or protection registers.**
-- [ ] **4.2 Portable core `kit/common/`.** (L)
+- [x] **4.2 Portable core `kit/common/`.** (L)
+  - *Status 2026-11-27:* written, and tested end to end in the emulator through `kit/ports/emulated`, whose counter
+    returns made-up numbers. The DWT and SysTick code has only been compiled; it has never run on a board.
   - Cycle counter: DWT `CYCCNT` on the Cortex-M4F; SysTick on processor clock on the Cortex-M0+
     (it has no cycle counter). SysTick is 24 bits, so a run that would wrap is an error, not a
     silent wrong number.
   - Result mailbox in RAM, readable by a debug probe through free tools (pyOCD or OpenOCD), plus
     an optional text line over the board's serial port.
   - Build info baked in: compiler version (`__VERSION__`), flags, kit version, git commit.
-- [ ] **4.3 Board ports, only for boards listed in D3.** (M to L each) Each port: clock setup at a
+- [ ] **4.3 Board ports, only for boards listed in D3.** *(Status 2026-11-27: none. D3 is open. `kit/ports/template/` is a skeleton to start from.)* (M to L each) Each port: clock setup at a
   stated frequency, register readout for wait states and caches, output path, and a build script.
   Likely candidates and what each validates:
 
@@ -373,14 +387,14 @@ identical input data, so compiler, library and input differences cannot creep in
   | LP-MSPM0G3507, EK-TM4C123GXL | mspm0g3507, tm4c123gh6pm | M0+, M4F | |
   | Any STM32 Nucleo or Black Pill | from phase 2 | M0+ or M4F | |
 
-- [ ] **4.4 Output a dataset row.** (M) The kit's host side writes a CSV row that matches every column
+- [x] **4.4 Output a dataset row.** (M) The kit's host side writes a CSV row that matches every column
   in `data/README.md`, with `source_id` pointing at this repo's commit and the kit version, plus a
   JSON file with all raw runs and the register readout. `mcu-ruleout dataset` accepts it as
   `complete`.
-- [ ] **4.5 `mcu-ruleout compare` (or `scripts/compare.py`).** (M) Takes the ELF and the measured
+- [x] **4.5 `mcu-ruleout compare` (or `scripts/compare.py`).** (M) Takes the ELF and the measured
   row, traces the same ELF, and prints the bound, the measurement, the ratio and `OK` or
   `VIOLATION`. Checks the ELF's hash against the one recorded with the measurement.
-- [ ] **4.6 Kernel set for measuring.** (S) The 6 built-in examples at two sizes each, plus the
+- [x] **4.6 Kernel set for measuring.** (S) The 6 built-in examples at two sizes each, plus the
   CMSIS-DSP FIR from 3.5. Fixed before measuring, in the pre-registration.
 - [ ] **4.7 Pico library question.** (M, only if a Pico is available) Build the FIR example twice:
   with the Pico SDK default (`pico_float`, ROM routines) and with libgcc. The libgcc build tests the
@@ -389,7 +403,7 @@ identical input data, so compiler, library and input differences cannot creep in
 - [ ] **4.8 Dry run on one board.** (M) After 5.1 is committed. One kernel end to end: build, flash,
   measure, compare, dataset row accepted. Fix whatever breaks. This dry run is not counted in the
   validation unless the pre-registration says so.
-- [ ] **4.9 Publish the kit for contributors.** (M) Issue form "Submit a measurement" asking for the
+- [x] **4.9 Publish the kit for contributors.** (M) *(Status 2026-11-27: the issue form and the verification steps are written; they go live when the branch is pushed.)* Issue form "Submit a measurement" asking for the
   raw log, the exact ELF and the register readout (D7). Document how submitted rows are verified by
   re-tracing the submitted ELF.
 
@@ -403,6 +417,10 @@ after the fact.
 
 - [ ] **5.1 Write and commit `validation/V2_PREREGISTRATION.md` before anything else in this
   phase or in 4.8.** (M) It fixes:
+  - *Status 2026-11-27:* written as a **draft that is not in force**. It is your promise to make,
+    so it waits for your review. Section 11 of the draft lists the points where this task's text
+    allowed more than one reading and what the draft chose. To put it in force: edit, remove the
+    draft notice, commit, and record the commit in `docs/VALIDATION.md`.
   - **The claim:** for every included row, the cycle lower bound ≤ the measurement; and for rows
     flagged as library-dependent, the "your own code" figure ≤ the measurement.
   - **Inclusion:** complete under the unchanged rule in `data/README.md`, and either a same-binary
@@ -423,10 +441,10 @@ after the fact.
   reference manual (1.5), as M2's decision allows. Write `validation/recipes/<id>.toml` for each:
   fetch the third-party repo by commit at run time (it has no licence, so nothing is copied here),
   build with GCC 14.2.Rel1 at `-O2` as the source states, and reproduce the same timed region.
-- [ ] **5.3 Extend `validation/run_validation.py`.** (L) Run recipes, accept same-binary kit rows,
+- [x] **5.3 Extend `validation/run_validation.py`.** (L) *(Status 2026-11-27: done as a new script, `validation/run_validation_v2.py`, so that round 1's script stays as it was when round 1 ran.)* Run recipes, accept same-binary kit rows,
   compute all metrics, write `validation/results_v2.json`. Tests for the runner on synthetic rows,
   including one violation case.
-- [ ] **5.4 Dry-run the runner on fake rows only**, never on real rows, before the test starts. (S)
+- [x] **5.4 Dry-run the runner on fake rows only**, never on real rows, before the test starts. (S)
 
 **Exit:** pre-registration committed; runner tested; real rows waiting to be run in phase 8.
 
@@ -434,39 +452,39 @@ after the fact.
 
 Runs alongside phases 1 to 5.
 
-- [ ] **6.1 Cross-platform CI.** (M) Add `windows-latest` and `macos-14` jobs with the Arm toolchain
+- [ ] **6.1 Cross-platform CI.** (M) *(Status 2026-11-27: the workflow is written but has never run, because nothing was pushed. Not accepted until every job is green.)* Add `windows-latest` and `macos-14` jobs with the Arm toolchain
   archives for those hosts and their published checksums. Python 3.11 to 3.14. A packaging job:
   build sdist and wheel, install the wheel in a clean environment, run `doctor` and one example.
   - **Accept:** all jobs green; the packaging job proves targets, cycle tables, examples and UI
     assets ship in the wheel.
-- [ ] **6.2 Publish to PyPI with trusted publishing.** (M) A workflow that runs on a version tag,
+- [ ] **6.2 Publish to PyPI with trusted publishing.** (M) *(Status 2026-11-27: `release.yml` is written and has never run. It needs the one-time setup listed at its top, D4, and a tag.)* A workflow that runs on a version tag,
   builds, and publishes through GitHub's OIDC (free, no stored token). TestPyPI first. Release
   0.2.0 early to secure the name.
   - **Accept:** `pipx install "mcu-ruleout[emu]"` works on clean Windows and Linux machines.
-- [ ] **6.3 Install guide.** (S) pipx, the Arm toolchain per operating system, `doctor`, and a
+- [x] **6.3 Install guide.** (S) pipx, the Arm toolchain per operating system, `doctor`, and a
   troubleshooting list built from 3.6.
-- [ ] **6.4 `CHANGELOG.md` and a versioning policy.** (S) Breaking changes include verdict wording,
+- [x] **6.4 `CHANGELOG.md` and a versioning policy.** (S) Breaking changes include verdict wording,
   the JSON schema and exit codes.
-- [ ] **6.5 Document the JSON output, `docs/JSON.md`, with a schema version field.** (M) Scripts and
+- [x] **6.5 Document the JSON output, `docs/JSON.md`, with a schema version field.** (M) Scripts and
   agents will depend on it.
-- [ ] **6.6 `CONTRIBUTING.md`.** (M) Dev setup, tests, how to add a target (person-checked, cited
+- [x] **6.6 `CONTRIBUTING.md`.** (M) Dev setup, tests, how to add a target (person-checked, cited
   pages), how to submit a measurement, DCO sign-off (D2), what will not be accepted (ranking,
   fitted models, uncited numbers).
-- [ ] **6.7 `CODE_OF_CONDUCT.md`** (Contributor Covenant) **and `SECURITY.md`.** (S) The security
+- [ ] **6.7 `CODE_OF_CONDUCT.md`** *(Status 2026-11-27: both files are written. The code of conduct still has a TODO for a contact address, and private vulnerability reporting has to be switched on in the repository's settings.)* (Contributor Covenant) **and `SECURITY.md`.** (S) The security
   policy states the threat model: the UI listens on 127.0.0.1 with a random token and runs your
   compiler on what you give it; never expose it on a network; how to report a problem.
-- [ ] **6.8 Issue and PR templates.** (S) Bug report, target request, target spec submission,
+- [x] **6.8 Issue and PR templates.** (S) Bug report, target request, target spec submission,
   measurement submission (4.9), rule-out story (7.2). PR template with a DCO and tests checklist.
-- [ ] **6.9 `THIRD_PARTY_NOTICES.md`.** (S) Unicorn is an optional extra under GPL-2.0, installed by the user and not bundled
+- [x] **6.9 `THIRD_PARTY_NOTICES.md`.** (S) Unicorn is an optional extra under GPL-2.0, installed by the user and not bundled
   (its PyPI metadata says BSD while the engine is GPL-2.0, so state the stricter reading). Capstone
   BSD-3-Clause, pyelftools public domain, the Arm toolchain installed by the user. Data under
   CC-BY-4.0, with each source's own terms in `data/sources.csv`. Not legal advice.
-- [ ] **6.10 `CITATION.cff`.** (S) So the tool and the dataset can be cited.
-- [ ] **6.11 README rewrite for launch.** (M) A 30-second explanation, the status block, a quick
+- [x] **6.10 `CITATION.cff`.** (S) So the tool and the dataset can be cited.
+- [x] **6.11 README rewrite for launch.** (M) A 30-second explanation, the status block, a quick
   start with pipx, what a verdict means, links to limitations and validation, and how to contribute.
-- [ ] **6.12 Tidy the docs.** (S) Move the milestone logs (M0 to M6) to `docs/history/` and add a
+- [x] **6.12 Tidy the docs.** (S) Move the milestone logs (M0 to M6) to `docs/history/` and add a
   short `docs/README.md` index.
-- [ ] **6.13 Optional: reproducibility container.** (M) A Dockerfile with the pinned toolchain and the
+- [ ] **6.13 Optional: reproducibility container.** *(Not started: it could not be built or tested here.)* (M) A Dockerfile with the pinned toolchain and the
   tool, published free on GitHub Container Registry, so anyone can reproduce validation results.
 
 **Exit:** a stranger can install from PyPI, run an example, and find how to contribute, on any of
@@ -477,6 +495,7 @@ the three operating systems.
 **Goal:** everything the 30-day test needs exists before day 1.
 
 - [ ] **7.1 Decisiveness protocol, `docs/study/DECISIVENESS_PROTOCOL.md`.** (M)
+  - *Status 2026-11-27:* written as a **draft that is not in force**; it waits for your review, like 5.1.
   - Who qualifies: practising engineers with a real kernel, a deadline and a candidate part list,
     for a current project or a past one where a part turned out too slow.
   - What they do: run the tool locally (no code leaves their machine), at 100 % and at their usual
@@ -486,9 +505,9 @@ the three operating systems.
   - **Counting rule, fixed now:** a case counts only if a rule-out removes a part the engineer was
     seriously considering and did not already know was infeasible.
   - **Thresholds (Gate 2):** PASS with at least 5 of 20 cases; FAIL with 2 or fewer.
-- [ ] **7.2 Intake.** (S) The "rule-out story" issue form for people happy to post publicly, and a
+- [ ] **7.2 Intake.** (S) *(Status 2026-11-27: the public issue form is written. The private option needs an address or a form from you.)* The "rule-out story" issue form for people happy to post publicly, and a
   private option (an email address or a free form) for those who are not.
-- [ ] **7.3 Kernel zoo, an internal proxy.** (M) Run 20 to 30 open kernels (the examples and common
+- [x] **7.3 Kernel zoo, an internal proxy.** (M) Run 20 to 30 open kernels (the examples and common
   CMSIS-DSP functions at common sizes) against the whole catalogue at realistic deadlines.
   - Report how often rule-outs fire at 100 % and 70 % load, and how many are trivial (float code on
     a part without an FPU) against non-trivial.
@@ -501,7 +520,7 @@ the three operating systems.
   API access, or a refundable deposit. PASS with at least 3 commitments from at least 2
   organisations, one of them recurring; FAIL with none after 25 conversations, or if the only
   requests are for custom chip files. Skip this if you only want the open-source outcome.
-- [ ] **7.6 Readiness review.** (S) Walk through section 2.1. Every item green, or the test waits.
+- [x] **7.6 Readiness review.** (S) *(Status 2026-11-27: done, in `docs/study/READINESS.md`. Result: not ready, 1 of 7 items met. Repeat it before day 1.)* Walk through section 2.1. Every item green, or the test waits.
 
 ---
 
@@ -607,3 +626,10 @@ Add one line per finished task.
 | 2026-11-27 | 3.4 | `mcu-ruleout new NAME`, `docs/HARNESS.md`, "Entry returned" in the timing report | `8c201ec` |
 | 2026-11-27 | 3.5 (part) | CMSIS-DSP recipe, harness and gated test written; never run against the library | `40d0e80` |
 | 2026-11-27 | 3.8 | Web UI: load limit, unchecked-spec mark, shareable-result download | `bc8f0d7` |
+| 2026-11-27 | 4.1, 4.2, 4.4, 4.5, 4.6 | Measurement kit: design, portable core, kernel set, `measurement import`, `compare`. Emulator only; no board port, nothing measured | `132bfc7` |
+| 2026-11-27 | 5.1 (draft), 5.3, 5.4 | Round-2 pre-registration as a draft, runner, dry run on 24 made-up rows | `723d7c0` |
+| 2026-11-27 | 6.5, 6.12 | `docs/JSON.md`, `schema_version`; milestone logs moved to `docs/history/` | `4acf78c` |
+| 2026-11-27 | 6.1 and 6.2 (written, not run), 6.3, 6.4, 6.6 to 6.10 | CI on three systems, release workflow, install guide, changelog, community files | `58ea5ca` |
+| 2026-11-27 | 6.11, 7.1 (draft) | README for launch; decisiveness protocol as a draft | `c5c2a5e` |
+| 2026-11-27 | (finding) | A timing rule-out that rests on only some of the builds now carries a caution and a `!` mark | `825c74b` |
+| 2026-11-27 | 7.3, 7.6 | Kernel zoo run and report; readiness review (not ready: 1 of 7) | `c31a8c6` |
