@@ -83,6 +83,30 @@ Then try the example from the README:
 mcu-ruleout shortlist --example fir_f32 --deadline 100us
 ```
 
+## In a container, to reproduce a result exactly
+
+The `Dockerfile` at the top of the repository builds an image with the pinned toolchain
+(14.2.Rel1, verified against Arm's checksum) and the tool from your checkout. Use it when you want
+the same compiler as CI without installing it, for example to reproduce a validation result.
+No image is published; you build it yourself.
+
+```sh
+docker build -t mcu-ruleout .
+```
+
+```sh
+docker run --rm mcu-ruleout shortlist --example fir_f32 --deadline 100us
+```
+
+```sh
+docker run --rm -v "$PWD:/work" mcu-ruleout shortlist /work/my_kernel.c --entry bench_my_kernel --measure my_kernel --deadline 1ms
+```
+
+The image is x86-64 only. On an Arm computer add `--platform linux/amd64` to both commands. It
+contains the Arm GNU Toolchain and Unicorn, which are under the GPL: building and running it
+yourself is fine, and if you pass the image on, those licences' terms apply to you
+([THIRD_PARTY_NOTICES.md](../THIRD_PARTY_NOTICES.md)).
+
 ## Troubleshooting
 
 Every error the tool prints is one line: what happened, then `Fix:` and what to do.

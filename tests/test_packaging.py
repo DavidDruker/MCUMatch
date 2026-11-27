@@ -50,6 +50,25 @@ class TestVersion(unittest.TestCase):
         self.assertIn(url, (REPO / ".github" / "ISSUE_TEMPLATE" / "config.yml").read_text(encoding="utf-8"))
 
 
+class TestPinnedToolchain(unittest.TestCase):
+    def test_the_container_pins_the_same_toolchain_archive_as_ci(self):
+        action = (REPO / ".github" / "actions" / "arm-toolchain" / "action.yml").read_text(encoding="utf-8")
+        docker = (REPO / "Dockerfile").read_text(encoding="utf-8")
+        linux = re.search(r"Linux-X64\)\s+file=(\S+)\s+sha=([0-9a-f]{64})", action)
+        self.assertIsNotNone(linux)
+        archive, sha = linux.groups()
+        self.assertIn(f"/{archive}\n", docker)
+        self.assertIn(f"ARG TOOLCHAIN_SHA256={sha}\n", docker)
+        self.assertIn("sha256sum -c", docker)  # the build verifies the archive before unpacking it
+
+    def test_every_pinned_archive_has_a_full_checksum(self):
+        action = (REPO / ".github" / "actions" / "arm-toolchain" / "action.yml").read_text(encoding="utf-8")
+        pins = re.findall(r"file=(arm-gnu-toolchain-14\.2\.rel1-\S+)\s+sha=([0-9a-f]+)", action)
+        self.assertEqual(len(pins), 3)  # Linux, Windows, macOS
+        for archive, sha in pins:
+            self.assertEqual(len(sha), 64, archive)
+
+
 class TestCommunityFiles(unittest.TestCase):
     def test_the_files_a_visitor_looks_for_exist(self):
         for name in ("LICENSE", "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md",

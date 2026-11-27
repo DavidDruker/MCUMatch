@@ -79,6 +79,11 @@ Everything since 0.1.0. Not released; `pyproject.toml` says `0.2.0.dev0`.
 - A `--toolchain` or `MCU_RULEOUT_TOOLCHAIN` folder that does not contain the compiler is now an
   error. The tool used to fall back silently to another toolchain.
 - The milestone logs moved to `docs/history/`.
+- **`--cflags` accepts a single flag.** `--cflags -O3` used to fail with "expected one argument",
+  because a lone word that starts with a dash looked like another option. Only values with a
+  space in them, such as `"-O2 -std=c11"`, worked.
+- A `Dockerfile` builds an image with the pinned toolchain and the tool, for reproducing a result
+  with the same compiler as CI. No image is published.
 
 ### Verdicts may change
 

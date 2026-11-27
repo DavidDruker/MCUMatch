@@ -25,8 +25,9 @@ jobs:
           # The oldest and the newest supported Python on the other two systems.
           - { os: windows-latest, python: "3.11" }
           - { os: windows-latest, python: "3.14" }
-          - { os: macos-14, python: "3.11" }
-          - { os: macos-14, python: "3.14" }
+          # macos-latest is Apple silicon. (The macos-14 label is no longer offered.)
+          - { os: macos-latest, python: "3.11" }
+          - { os: macos-latest, python: "3.14" }
     defaults:
       run:
         shell: bash
@@ -46,7 +47,11 @@ jobs:
         run: python -c "import unicorn, mcu_ruleout.toolchain as t; print(t.find_toolchain().version())"
 
       - name: Run the tests
-        run: python -m unittest discover -s tests -t . -v
+        run: python -m unittest discover -s tests -t . -v 2>&1 | tee test.log
+
+      - name: Put the failures on the run's summary
+        if: failure()
+        run: python .github/scripts/annotate_failures.py test.log
 
       - name: Check the dataset
         run: python -m mcu_ruleout dataset data
@@ -97,9 +102,13 @@ jobs:
           set -o pipefail
           python -m unittest tests.test_cmsis_dsp -v 2>&1 | tee cmsis-test.log
           if grep -q "skipped" cmsis-test.log; then
-            echo "a CMSIS-DSP test was skipped, so the recipe was not verified" >&2
+            echo "::error title=CMSIS-DSP recipe::a test was skipped, so the recipe was not verified"
             exit 1
           fi
+
+      - name: Put the failures on the run's summary
+        if: failure()
+        run: python .github/scripts/annotate_failures.py cmsis-test.log
 
       - name: The shortlist from the document, for the record
         env:
@@ -110,6 +119,21 @@ jobs:
             "$DSP/Source/FilteringFunctions/arm_fir_f32.c" "$DSP/Source/FilteringFunctions/arm_fir_init_f32.c" \
             -I "$DSP/Include" -I "$DSP/PrivateInclude" -I "$CORE" -D ARM_MATH_LOOPUNROLL --cflags "-O3" \
             --entry bench_arm_fir_f32 --measure fir_block --deadline 100us || test $? -eq 3
+
+  container:
+    # The Dockerfile at the top of the repository: the pinned toolchain plus this checkout.
+    name: reproducibility container builds and runs
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build the image (its last step runs `mcu-ruleout doctor`)
+        run: docker build -t mcu-ruleout .
+
+      - name: Run a check and the validation dry run inside it
+        run: |
+          docker run --rm mcu-ruleout shortlist --example fir_q15 --deadline 100us --max-load 70
+          docker run --rm --entrypoint python mcu-ruleout validation/dry_run_v2.py
 
   package:
     name: build the package and use it from a clean install

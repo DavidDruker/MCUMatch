@@ -1,0 +1,12 @@
+# Keep the build context small and free of local state.
+.git
+.venv
+.claude
+build
+dist
+packs
+third_party
+validation/.cache
+**/__pycache__
+**/*.pyc
+**/*.egg-info

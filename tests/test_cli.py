@@ -66,6 +66,19 @@ class TestMemoryCommand(unittest.TestCase):
         self.assertEqual(d["lower_bounds"]["ram_bytes"], min(m["ram_bytes"] for m in ok))
         self.assertTrue(d["assumptions"] and d["not_modeled"])
 
+    def test_a_single_compiler_flag_is_accepted_as_the_value_of_cflags(self):
+        # `--cflags -O3` used to fail with "expected one argument": a lone word that starts with a
+        # dash looks like another option. Only values with a space in them got through.
+        for flags in ("-O3", "-Os", "-O1 -std=c11"):
+            with self.subTest(flags=flags):
+                code, out = run("memory", "--target", TINY, str(MEMTEST), "--entry", "memtest_entry",
+                                "--no-envelope", "--cflags", flags, "--json")
+                self.assertEqual(code, EXIT_NOT_RULED_OUT)
+                self.assertEqual(json.loads(out)["inputs"]["user_flags"], flags.split())
+        code, out = run("memory", "--target", TINY, str(MEMTEST), "--entry", "memtest_entry", "--no-envelope",
+                        "--cflags=-O3", "--json")  # the form that always worked still does
+        self.assertEqual(json.loads(out)["inputs"]["user_flags"], ["-O3"])
+
     def test_prebuilt_elf(self):
         with tempfile.TemporaryDirectory() as tmp:
             r = build(toolchain(), CORE_FLAGS["m0plus"], [MEMTEST], ["memtest_entry"], user_config(("-O2",)), Path(tmp))

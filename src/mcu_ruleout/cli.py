@@ -500,6 +500,23 @@ def _timing_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--max-insns", type=int, default=50_000_000, help="stop after this many counted instructions")
 
 
+def _join_option_values(argv: list[str]) -> list[str]:
+    """Turn `--cflags -O3` into `--cflags=-O3`.
+
+    The value of --cflags is a compiler flag, so it starts with a dash, and the argument parser
+    takes a lone word that starts with a dash for another option ("expected one argument"). A
+    value with a space in it, such as "-O2 -std=c11", was never affected, which hid the problem."""
+    out: list[str] = []
+    words = iter(argv)
+    for word in words:
+        if word == "--cflags":
+            value = next(words, None)
+            out.append(word if value is None else f"--cflags={value}")
+        else:
+            out.append(word)
+    return out
+
+
 def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="mcu-ruleout", description="Says when code can NOT fit a Cortex-M target.")
     ap.add_argument("--version", action="version", version=f"mcu-ruleout {__version__}")
@@ -585,7 +602,7 @@ def main(argv: list[str] | None = None) -> int:
     d.add_argument("data_dir", nargs="?", default="data", help="folder with published_measurements.csv and sources.csv")
     d.set_defaults(func=cmd_dataset)
 
-    args = ap.parse_args(argv)
+    args = ap.parse_args(_join_option_values(sys.argv[1:] if argv is None else argv))
     try:
         return args.func(args)
     except KeyError as e:
