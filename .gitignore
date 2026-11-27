@@ -5,3 +5,5 @@ __pycache__/
 *.egg-info/
 # Vendor CMSIS packs, downloaded by hand for scripts/check_against_packs.py
 packs/
+# Third-party code fetched by commit for validation recipes; never committed
+validation/.cache/

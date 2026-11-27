@@ -330,9 +330,9 @@ def cmd_measurement(args) -> int:
     prefix = draft["id"].rsplit("-", 1)[0]
     m = K.build_measurement(result, Path(args.elf), target, kernels, args.mcu, args.measured_by or "",
                             number=K.next_number(Path(args.out), prefix))
-    path = K.write_measurement(m, Path(args.out), Path(args.dataset) if args.dataset else None)
+    path = K.write_measurement(m, Path(args.out), Path(args.dataset) if args.dataset else None, Path(args.elf))
     row = K.dataset_row(m)
-    print(f"Measurement written to {path}")
+    print(f"Measurement written to {path}, with the ELF next to it as {m['elf']['file_name']}")
     print(f"  {m['bench']} on {m['board']}: minimum {m['raw_min']:,} cycles over {len(m['runs'])} runs "
           f"(overhead minimum {m['overhead_min']:,}), {m['counter']} at {m['core_clock_hz']:,} Hz")
     print(f"  dataset row: {row['config_completeness']}" + (f"; missing: {row['missing']}" if row["missing"] else ""))
@@ -340,7 +340,7 @@ def cmd_measurement(args) -> int:
         print("  This result is from the emulated port. Its numbers are made up and it is not a measurement.")
     if args.dataset:
         print(f"  row and source added to {args.dataset}")
-    print(f"Next: mcu-ruleout compare --elf {args.elf} --measurement {path}")
+    print(f"Next: mcu-ruleout compare --elf {path.with_suffix('.elf')} --measurement {path}")
     return 0
 
 

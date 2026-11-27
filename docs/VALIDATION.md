@@ -66,6 +66,42 @@ The bound has been checked only against things I can compute myself, not against
 These show the tool implements the stated model. They do not show the model is a true lower bound
 on silicon.
 
+## Round 2: prepared, not run
+
+Round 2 is set up so that the claim can be tested as soon as there are rows to test it on. As of
+2026-11-27 it has **no real row and no result**. N is still 0.
+
+| Piece | State |
+|---|---|
+| Pre-registration, `validation/V2_PREREGISTRATION.md` | **Draft, not in force.** It takes effect when it has been reviewed, its draft notice removed, and its commit recorded here |
+| Pre-registration commit | not yet |
+| Measurement method, `docs/MEASURE.md` | Written. The kit's portable core and host side are tested in the emulator only |
+| Board ports | None. Nothing has been measured |
+| Recipes for the 24 FRDM-K64F rows | None. They need NXP's K64 reference manual for the flash controller's reset values |
+| Runner, `validation/run_validation_v2.py` | Written and tested on synthetic rows. It refuses an official run while the pre-registration is a draft |
+| Official result, `validation/results_v2.json` | Does not exist |
+
+**Dry run on made-up rows (2026-11-27).** `validation/dry_run_v2.py` builds kit images for the
+emulated port, runs them in the emulator, relabels their made-up counter values as hardware ones,
+and puts 24 such rows through the runner. One row is made to violate the claim and one to land
+within the overhead. Its output, which says nothing about hardware:
+
+```text
+DRY RUN ON MADE-UP ROWS. Nothing below says anything about hardware.
+dataset rows: 24  complete: 24  included: 24  not evaluated: 0
+claim A: 24 rows, 22 OK, 1 violation(s), 1 within overhead
+  VIOLATION: mcu-ruleout-kit-0_1-0123456-fir-fir_f32_64x16-emulated_not_hardware-2
+  measured / bound over OK rows: min 1.250, median 1.750, max 2.350
+  ruled out at 0.5x, 1x, 2x the measured time: 74%, 4%, 0%
+Gate 1: FAIL  (1 unexplained violation(s) on a Cortex-M4F part: ...)
+```
+
+The "FAIL" is the intended result of the planted violation. It shows the runner reports a
+violation and applies the rule; it is not a finding. The dry run writes to a temporary folder and
+never to `data/` or `validation/`.
+
+Deviations from the round-2 pre-registration: none can exist yet, because it is not in force.
+
 ## How this could become a real test
 
 - **Fastest route:** obtain NXP's K64 reference manual (K64P144M120SF5RM). Citing its flash

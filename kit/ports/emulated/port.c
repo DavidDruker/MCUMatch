@@ -45,11 +45,13 @@ void kit_made_up_restart(void)
 
 uint32_t kit_made_up_read(void)
 {
-    /* The minimum of each group of runs is the configured value: one run in four has no jitter,
-     * and it is never the first, so taking the minimum is exercised. */
+    /* The minimum of each group of runs is the configured value: the second run of a group has no
+     * jitter and the first has some, so taking the minimum is exercised. (With KIT_RUNS = 1 there
+     * is no second run, and the one run reports the configured value plus 7.) */
     static const uint8_t jitter[4] = {7, 0, 3, 12};
     if (reads_in_call++ != 0) {
-        now += (timed_calls <= KIT_RUNS ? KIT_MADE_UP_OVERHEAD : KIT_MADE_UP_BENCH) + jitter[timed_calls % 4u];
+        uint32_t run_in_group = (timed_calls - 1u) % KIT_RUNS;
+        now += (timed_calls <= KIT_RUNS ? KIT_MADE_UP_OVERHEAD : KIT_MADE_UP_BENCH) + jitter[run_in_group % 4u];
     }
     return now;
 }

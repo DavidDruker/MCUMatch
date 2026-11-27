@@ -18,6 +18,7 @@ import csv
 import hashlib
 import json
 import re
+import shutil
 import struct
 import tomllib
 from dataclasses import dataclass, field
@@ -276,7 +277,9 @@ def build_measurement(result: KitResult, elf: Path, target: Target, kernels: dic
     return {
         "schema": SCHEMA, "id": mid, "source_id": source_id, "imported": date.today().isoformat(),
         "measured_by": measured_by, "repo_url": repo_url, "read_from": result.read_from,
-        "elf": {"file_name": Path(elf).name, "sha256": info.sha256, "build_id": info.build_id},
+        # The ELF is kept next to the measurement file under this name, so the pair can be re-traced.
+        "elf": {"file_name": f"{mid}.elf", "original_name": Path(elf).name, "sha256": info.sha256,
+                "build_id": info.build_id},
         "target": target.id, "core": target.core, "mcu": mcu or target.id, "board": result.board,
         "bench": result.bench, "entry": result.entry,
         "kernel": {"family": kernel.get("kernel", ""), "size": kernel.get("size", ""),
@@ -360,12 +363,15 @@ def _append_csv(path: Path, columns: tuple[str, ...], row: dict, key: str) -> bo
     return True
 
 
-def write_measurement(m: dict, out_dir: Path, dataset_dir: Path | None = None) -> Path:
-    """Write the measurement file, and add its row and source to a dataset folder if one is given."""
+def write_measurement(m: dict, out_dir: Path, dataset_dir: Path | None = None, elf: Path | None = None) -> Path:
+    """Write the measurement file, copy the ELF next to it if one is given, and add the row and its
+    source to a dataset folder if one is given."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{m['id']}.json"
     path.write_text(json.dumps(m, indent=2) + "\n", encoding="utf-8", newline="\n")
+    if elf is not None:
+        shutil.copyfile(elf, out_dir / m["elf"]["file_name"])
     if dataset_dir is not None:
         dataset_dir = Path(dataset_dir)
         dataset_dir.mkdir(parents=True, exist_ok=True)
