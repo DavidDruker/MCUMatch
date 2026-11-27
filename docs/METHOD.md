@@ -71,7 +71,7 @@ an IT block passed its condition. Both are facts about that run of that binary.
 | SVC, BKPT, WFI, WFE | error | error | The table gives no usable count |
 
 Where Arm's text and table disagree, the lower figure is used. Details and the two places this
-happens are in [M3_TIMING.md](M3_TIMING.md).
+happens are in [history/M3_TIMING.md](history/M3_TIMING.md).
 
 ### Why time is a lower bound
 

@@ -416,7 +416,8 @@ class Comparison:
         return self.corrected / self.bound
 
     def as_json(self) -> dict:
-        return {"measurement": self.measurement_id, "entry": self.entry, "outcome": self.outcome,
+        return {"schema_version": 1, "kind": "compare",
+                "measurement": self.measurement_id, "entry": self.entry, "outcome": self.outcome,
                 "bound_cycles": self.bound, "bound_empty_cycles": self.bound_empty,
                 "measured_raw_cycles": self.raw, "overhead_cycles": self.overhead,
                 "measured_corrected_cycles": self.corrected, "ratio_raw": self.ratio_raw,

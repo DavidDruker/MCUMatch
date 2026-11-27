@@ -50,7 +50,7 @@ that could change timing to be stated by the source. Published measurements rare
 
 38 rows miss only the wait-state and cache items. A check of their own source code on 2026-11-24
 found the projects never configure those settings, so the chips' reset defaults apply. But the
-manuals that state those defaults could not be obtained (details in `docs/M2_DATASET.md`). Dropping the item
+manuals that state those defaults could not be obtained (details in `docs/history/M2_DATASET.md`). Dropping the item
 from the rule was considered and rejected on 2026-11-24.
 
 ## What the bound's evidence actually is

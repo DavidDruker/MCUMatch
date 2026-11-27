@@ -239,7 +239,7 @@ document page, and the tool shows which specs have been.
     `cycle_tables/cortex-m4f.toml` changes. If one does, the change must only lower or keep a count
     for the bound to stay a lower bound; a raised count needs a decision and a log entry.
   - Settle the open item from M3 on the nRF52840's FPU (FPv4-SP) from a cited document.
-  - Update `docs/M3_TIMING.md` and `docs/METHOD.md`.
+  - Update `docs/history/M3_TIMING.md` and `docs/METHOD.md`.
 - [ ] **1.7 CMSIS-Pack cross-check script.** (M)
   - `scripts/check_against_packs.py`: compares each spec's flash, RAM and maximum clock with the
     vendor's device family pack (`.pdsc`, downloaded by hand into an ignored folder).

@@ -18,6 +18,10 @@ from .shortlist import Row, Shortlist
 from .targets import Target
 from .timing import format_duration
 
+# Version of the JSON output (docs/JSON.md). It changes only when a field is removed, renamed or
+# changes meaning. Adding a field does not change it.
+SCHEMA_VERSION = 1
+
 NOT_A_FIT = "This is not a 'fits' verdict. Nothing here shows that the code fits or runs."
 NOT_A_PASS = ("This is not a 'meets the deadline' verdict. The bound is for the binary built here: real hardware "
               "running that binary can only be slower. A faster library, another compiler or another input "
@@ -111,6 +115,7 @@ def _memory_core_json(res: M.MemoryResult) -> dict:
 
 def memory_json(res: M.MemoryResult, inputs: dict, vers: dict) -> dict:
     return {
+        "schema_version": SCHEMA_VERSION, "kind": "memory",
         **_memory_core_json(res),
         "target": _target_json(res.target), "inputs": inputs, "versions": vers,
         "measurements": [_measurement_json(m) for m in res.measurements],
@@ -203,6 +208,7 @@ def timing_json(res: T.TimingResult, built: str, call_args: tuple[int, ...], ver
     """Machine-readable timing result, shared by `timing --json` and the web UI."""
     trace, target, cost = res.trace, res.target, res.cost
     return {
+        "schema_version": SCHEMA_VERSION, "kind": "timing",
         **_timing_core_json(res),
         "instructions": trace.instructions, "clock_where": target.max_clock_hz.where,
         "entry_return_value": _signed32(trace.return_value),
@@ -324,6 +330,7 @@ def _floors(sl: Shortlist) -> list[dict]:
 
 def shortlist_json(sl: Shortlist, inputs: dict, vers: dict) -> dict:
     return {
+        "schema_version": SCHEMA_VERSION, "kind": "shortlist",
         "deadline_s": sl.deadline_s, "limits": sl.limits.as_json(), "timing_skipped": sl.timing_skipped,
         "counts": {"targets": len(sl.rows), "ruled_out": len(sl.ruled_out),
                    "not_ruled_out": len(sl.remaining), "no_verdict": len(sl.failed)},
