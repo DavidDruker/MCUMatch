@@ -36,7 +36,7 @@ QUANTITIES = ("flash", "ram", "clock")
 class PackDevice:
     name: str
     pack: str  # file the description came from
-    memories: dict[str, dict] = field(default_factory=dict)  # region name -> {"size", "kind"}
+    memories: dict[str, dict] = field(default_factory=dict)  # region name -> {"size", "kind", "start", "access"}
     clock_hz: int | None = None
 
     def total(self, kind: str) -> int | None:
@@ -81,7 +81,8 @@ def _apply(element: ET.Element, state: dict) -> dict:
             key = child.get("name") or child.get("id")
             size, kind = _int(child.get("size")), _memory_kind(child.attrib)
             if key and size and kind:
-                state["memories"][key] = {"size": size, "kind": kind}
+                state["memories"][key] = {"size": size, "kind": kind, "start": _int(child.get("start")),
+                                          "access": child.get("access") or child.get("id") or ""}
     return state
 
 
@@ -130,14 +131,21 @@ def find_device(devices: list[PackDevice], pattern: str) -> PackDevice | None:
 
 
 def similar_names(devices: list[PackDevice], pattern: str, limit: int = 8) -> list[str]:
-    """Device names that share their first letters and digits with the pattern, to correct it from."""
-    key = "".join(ch for ch in pattern.lower() if ch.isalnum())
-    for length in (8, 6, 5, 4):
-        hits = sorted({d.name for d in devices
-                       if "".join(ch for ch in d.name.lower() if ch.isalnum()).startswith(key[:length])})
-        if hits and len(key) >= length:
-            return hits[:limit]
-    return []
+    """The device names that share the longest run of first letters and digits with the pattern,
+    closest first, to correct the pattern from."""
+    def squeeze(text: str) -> str:
+        return "".join(ch for ch in text.lower() if ch.isalnum())
+
+    key = squeeze(pattern)
+
+    def shared(name: str) -> int:
+        other, n = squeeze(name), 0
+        while n < min(len(key), len(other)) and key[n] == other[n]:
+            n += 1
+        return n
+
+    ranked = sorted({d.name for d in devices}, key=lambda name: (-shared(name), name))
+    return [name for name in ranked if shared(name) >= 4][:limit]
 
 
 @dataclass
@@ -220,6 +228,21 @@ def render_compact(lines: list[Line]) -> str:
     return "\n".join(out)
 
 
+def render_regions(targets, mapping: dict, devices: list[PackDevice]) -> str:
+    """Every memory region each matched pack device lists, so that a difference in a total can be
+    traced to the region that causes it: an alias, a peripheral window, an external-flash window."""
+    out = []
+    for t in targets:
+        device = find_device(devices, mapping.get(t.id, {}).get("device") or "")
+        if device is None:
+            continue
+        out.append(f"{t.id} = {device.name}:")
+        for name, m in sorted(device.memories.items(), key=lambda kv: (kv[1]["start"] or 0)):
+            start = f"{m['start']:#010x}" if m["start"] is not None else "?"
+            out.append(f"  {m['kind']:<5} {start} {m['size']:>11,} B  {m['access']:<4} {name}")
+    return "\n".join(out)
+
+
 def main(argv: list[str] | None = None) -> int:
     sys.path.insert(0, str(ROOT / "src"))
     from mcu_ruleout.targets import builtin_target_paths, find_target, load_target
@@ -230,6 +253,7 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--map", default=str(ROOT / "scripts" / "pack_devices.toml"), help="spec-to-device mapping file")
     ap.add_argument("--markdown", action="store_true", help="print a Markdown table for docs/CATALOGUE_CHECK.md")
     ap.add_argument("--compact", action="store_true", help="print one line per spec")
+    ap.add_argument("--regions", action="store_true", help="list every memory region of each matched pack device")
     args = ap.parse_args(argv)
 
     folder = Path(args.packs)
@@ -246,6 +270,9 @@ def main(argv: list[str] | None = None) -> int:
     mapping = tomllib.loads(Path(args.map).read_text(encoding="utf-8"))
     targets = ([find_target(s) for s in args.specs] if args.specs
                else [load_target(p) for p in builtin_target_paths().values()])
+    if args.regions:
+        print(render_regions(targets, mapping, devices))
+        return 0
     lines = [ln for t in targets for ln in compare(t, mapping.get(t.id, {}), devices)]
     print(render_compact(lines) if args.compact else render(lines, args.markdown))
     bad = [ln for ln in lines if ln.needs_attention]

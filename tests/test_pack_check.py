@@ -125,7 +125,18 @@ class TestComparison(unittest.TestCase):
         got = self.statuses({"device": "TINYM0-HUGE"})
         self.assertEqual(got["flash"].status, "no device")
         self.assertIn("names in the packs that look close: TINYM0, TINYM0-BIG", got["flash"].detail)
+        # The closest name comes first, however the alphabet orders them.
+        self.assertEqual(packs.similar_names(self.devices, "TINYM0-BIGGER")[0], "TINYM0-BIG")
         self.assertEqual(packs.similar_names(self.devices, "zzz"), [])
+
+    def test_regions_are_listed_with_their_addresses(self):
+        text = packs.render_regions([TINY], {"tiny-m0plus": {"device": "TINYM0-BIG"}}, self.devices)
+        self.assertEqual(text.splitlines(), [
+            "tiny-m0plus = TINYM0-BIG:",
+            "  flash 0x00000000       8,192 B  rx   Flash",
+            "  ram   0x20000000       6,144 B  rwx  SRAM",
+            "  ram   0x20001800       2,048 B  rw   SRAM2",
+        ])
 
     def test_compact_output_is_one_line_per_spec(self):
         text = packs.render_compact(packs.compare(TINY, {"device": "TINYM0"}, self.devices))

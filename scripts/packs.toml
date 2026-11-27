@@ -5,14 +5,16 @@
 # (https://www.keil.com/pack/index.pidx), read on 2026-11-27. A pack's file is
 # <url><vendor>.<name>.<version>.pack.
 #
-# `sha256` pins the file. An entry without one is downloaded and its hash is printed, so that it
-# can be pinned here after the first run.
+# `sha256` pins the file: the hashes are the ones the first CI download printed, on 2026-11-27.
+# They show that later downloads are the same file, not that the file is what the vendor meant to
+# publish. An entry without one is downloaded and its hash is printed, so that it can be pinned.
 #
 # A pack is a cross-check, never a source: see docs/CATALOGUE_CHECK.md.
 
 [[pack]]
 vendor = "AmbiqMicro"
 name = "Apollo_DFP"
+sha256 = "4af5ead00786b6416dff699ee62433abd7b09d12768db8735f3962abeae503f2"
 version = "1.6.0"
 url = "https://download.ambiq.com/packs/"
 specs = ["apollo3-blue"]
@@ -20,6 +22,7 @@ specs = ["apollo3-blue"]
 [[pack]]
 vendor = "Microchip"
 name = "SAMD21_DFP"
+sha256 = "53c1ce0627adb112aa7db8acb7158786966b61a24eb4f5184cb49e16af5f98b4"
 version = "3.9.287"
 url = "https://packs.download.microchip.com/"
 specs = ["atsamd21g18a"]
@@ -27,6 +30,7 @@ specs = ["atsamd21g18a"]
 [[pack]]
 vendor = "Microchip"
 name = "SAMD51_DFP"
+sha256 = "87585e7fbfcdeacf991effa0515a79ea73ba457b1437a4b05a2021d817bb4661"
 version = "3.10.283"
 url = "https://packs.download.microchip.com/"
 specs = ["atsamd51j19a"]
@@ -34,6 +38,7 @@ specs = ["atsamd51j19a"]
 [[pack]]
 vendor = "NXP"
 name = "MK64F12_DFP"
+sha256 = "b69f6f4ee1b5ed5e37527fb3742a8a6cbe5aec134aba26cfc6a8ea059215296b"
 version = "14.0.0"
 url = "https://mcuxpresso.nxp.com/cmsis_pack/repo/"
 specs = ["mk64fn1m0vll12"]
@@ -41,6 +46,7 @@ specs = ["mk64fn1m0vll12"]
 [[pack]]
 vendor = "NXP"
 name = "MKL26Z4_DFP"
+sha256 = "072e34f19a74c35f34a13d719eae106b984d69e1cce970714a606643b109ca1e"
 version = "10.0.3"
 url = "https://mcuxpresso.nxp.com/cmsis_pack/repo/"
 specs = ["mkl26z64vft4"]
@@ -48,6 +54,7 @@ specs = ["mkl26z64vft4"]
 [[pack]]
 vendor = "TexasInstruments"
 name = "MSPM0G1X0X_G3X0X_DFP"
+sha256 = "071bd317fc0f152ded6b2ae594d79c6fc5eb9952370526b4c14ef5b3b9807860"
 version = "1.3.1"
 url = "https://software-dl.ti.com/msp430/esd/MSPM0-CMSIS/MSPM0G1X0X_G3X0X/latest/exports/"
 specs = ["mspm0g3507"]
@@ -55,6 +62,7 @@ specs = ["mspm0g3507"]
 [[pack]]
 vendor = "NordicSemiconductor"
 name = "nRF_DeviceFamilyPack"
+sha256 = "95136b57a8310ba367aa46cb66c8d149561fc7876c5f3736f323a9dbfb8f559e"
 version = "8.44.1"
 url = "https://developer.nordicsemi.com/nRF5_SDK/pieces/nRF_DeviceFamilyPack/"
 specs = ["nrf52832", "nrf52833", "nrf52840"]
@@ -62,6 +70,7 @@ specs = ["nrf52832", "nrf52833", "nrf52840"]
 [[pack]]
 vendor = "RaspberryPi"
 name = "RP2xxx_DFP"
+sha256 = "570be2d4fccf182d892bbf6356e15957ba4da71d0a1338b1f4116c55fe1b0e77"
 version = "0.9.5"
 url = "https://github.com/raspberrypi/cmsis-rp2xxx-dfp/releases/download/v0.9.5/"
 specs = ["rp2040-pico"]
@@ -69,6 +78,7 @@ specs = ["rp2040-pico"]
 [[pack]]
 vendor = "Keil"
 name = "TM4C_DFP"
+sha256 = "127dcaf64e1b64674ae902239b6afa612701d8a73031492d65205f9aee2a5e8e"
 version = "1.1.0"
 url = "https://www.keil.com/pack/"
 specs = ["tm4c123gh6pm"]
