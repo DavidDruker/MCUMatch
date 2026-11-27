@@ -132,6 +132,15 @@ Useful options: `--target` (repeatable) picks targets or adds your own `.toml` s
 keeps one core, and `--report shortlist.md` also writes a Markdown report that lists the document,
 section and page behind every capacity figure, for a design review.
 
+If you never plan to use the whole deadline, say how much of it you allow. `--max-load 70` also
+rules out every part whose best case is above 70 % of the deadline, and the floors then give the
+clock needed at that load. `--max-flash-use` and `--max-ram-use` do the same for memory. All three
+default to 100, and a part under your limit is still only "not ruled out":
+
+```powershell
+.\.venv\Scripts\mcu-ruleout.exe shortlist --example fir_f32 --deadline 100us --max-load 70
+```
+
 ### One target in detail
 
 ```powershell

@@ -3,22 +3,30 @@
 cycles_lb = sum over executed instructions of the documented minimum cycle count,
             minimised over every build that could be traced (your flags plus envelope builds).
 time_lb   = cycles_lb / (the target's maximum rated clock).
-Verdicts are only "RULED OUT (timing, best case)" or "NOT RULED OUT: measure on hardware".
+Verdicts are only "RULED OUT (timing, best case)", "RULED OUT (timing, best case above your
+N % load limit)" or "NOT RULED OUT: measure on hardware".
 """
 from __future__ import annotations
 
 import re
 from collections import Counter
 from dataclasses import dataclass, field
+from fractions import Fraction
 from pathlib import Path
 
 from .cycles import UNDOCUMENTED, CycleModel
 from .emu import DEFAULT_MAX_INSNS, Trace, run_trace
+from .limits import FULL, format_duration_limit, format_percent
 from .origin import USER, Origins, parse_map
 from .targets import Target
 
 RULED_OUT = "RULED OUT (timing, best case)"
 NOT_RULED_OUT = "NOT RULED OUT: measure on hardware"
+
+
+def ruled_out_by_load_limit(load_limit: Fraction) -> str:
+    """The verdict when the best case is within the deadline but above the load limit asked for."""
+    return f"RULED OUT (timing, best case above your {format_percent(load_limit)} load limit)"
 UNATTRIBUTED = "unattributed"
 
 ASSUMPTIONS = (
@@ -42,14 +50,17 @@ NOT_MODELED = (
     "call overhead outside the measured function, and startup code",
 )
 
-_UNITS = {"s": 1.0, "ms": 1e-3, "us": 1e-6, "ns": 1e-9}
+_UNITS = {"s": Fraction(1), "ms": Fraction(1, 10**3), "us": Fraction(1, 10**6), "ns": Fraction(1, 10**9)}
 
 
 def parse_duration(text: str) -> float:
+    """Seconds, as the double nearest to the value typed. The scaling is done exactly first:
+    `100 * 1e-6` in floating point is just under 100 us, which would rule out a kernel that
+    needs exactly 100 us."""
     m = re.fullmatch(r"\s*([0-9]*\.?[0-9]+(?:[eE][-+]?[0-9]+)?)\s*(s|ms|us|ns)\s*", text)
-    if not m or float(m[1]) <= 0:
+    if not m or Fraction(m[1]) <= 0:
         raise ValueError(f"bad duration {text!r}: use a positive number with s, ms, us or ns, e.g. 250us")
-    return float(m[1]) * _UNITS[m[2]]
+    return float(Fraction(m[1]) * _UNITS[m[2]])
 
 
 def format_duration(seconds: float) -> str:
@@ -122,6 +133,7 @@ class TimingResult:
     builds: list[TimingBuild] = field(default_factory=list)
     user_cycles_lb: int | None = None  # minimum over the builds of the cycles in your own code
     user_cycles_from: str = ""
+    load_limit: Fraction = FULL  # share of the deadline the best case may use before it is ruled out
 
     # The costed trace's figures, under the names reports use.
     @property
@@ -161,25 +173,57 @@ class TimingResult:
         return None if self.user_cycles_lb is None else self.user_cycles_lb / self.clock_hz
 
     @property
-    def required_clock_hz(self) -> float | None:
-        """Clock below which this core is ruled out at the deadline, whatever the part."""
-        return None if self.deadline_s is None else self.cycles_lb / self.deadline_s
+    def allowed_s(self) -> float | None:
+        """The time the best case may take before it is ruled out: the deadline times the load limit."""
+        return None if self.deadline_s is None else self.deadline_s * float(self.load_limit)
 
     @property
-    def ruled_out(self) -> bool:
+    def required_clock_hz(self) -> float | None:
+        """Clock below which this core is ruled out at the deadline and load limit, whatever the part."""
+        return None if self.deadline_s is None else self.cycles_lb / self.allowed_s
+
+    @property
+    def best_case_load(self) -> float | None:
+        """The best-case time as a share of the deadline. A lower bound on the load, not a prediction."""
+        return None if self.deadline_s is None else self.time_lb_s / self.deadline_s
+
+    def _exceeds(self, cycles: int) -> bool:
+        """Is this many cycles, at the maximum clock, more than the deadline times the load limit?"""
+        if self.deadline_s is None:
+            return False
+        if self.load_limit == FULL:
+            return cycles / self.clock_hz > self.deadline_s
+        # Exact arithmetic, so a best case that is exactly at the limit is not ruled out. str() gives
+        # the shortest decimal that names this double, which is the deadline as it was typed.
+        return Fraction(cycles, self.clock_hz) > Fraction(str(self.deadline_s)) * self.load_limit
+
+    @property
+    def over_deadline(self) -> bool:
+        """The best case misses the whole deadline, whatever load limit was asked for."""
         return self.deadline_s is not None and self.time_lb_s > self.deadline_s
 
     @property
+    def ruled_out(self) -> bool:
+        return self._exceeds(self.cycles_lb)
+
+    @property
     def verdict(self) -> str:
-        return RULED_OUT if self.ruled_out else NOT_RULED_OUT
+        if not self.ruled_out:
+            return NOT_RULED_OUT
+        return RULED_OUT if self.over_deadline else ruled_out_by_load_limit(self.load_limit)
+
+    @property
+    def short_reason(self) -> str:
+        """How the shortlist names this rule-out: 'timing', or 'timing: above 70 % load'."""
+        return "timing" if self.over_deadline else f"timing: above {format_percent(self.load_limit)} load"
 
     @property
     def holds_without_library(self) -> bool | None:
         """For a rule-out: would it stand if library routines took no time at all? None = not
         ruled out, or the split is unknown (prebuilt ELF)."""
-        if not self.ruled_out or self.user_time_lb_s is None:
+        if not self.ruled_out or self.user_cycles_lb is None:
             return None
-        return self.user_time_lb_s > self.deadline_s
+        return self._exceeds(self.user_cycles_lb)
 
     @property
     def library_cycles(self) -> dict[str, int]:
@@ -193,21 +237,24 @@ class TimingResult:
             return []
         lib = self.library_cycles
         share = sum(lib.values()) / self.cycles_lb if self.cycles_lb else 0.0
+        limit = ("the deadline" if self.load_limit == FULL
+                 else f"your {format_duration_limit(self.load_limit, format_duration(self.allowed_s))}")
         return [
             f"This rule-out depends on library code. {share:.0%} of the bound's cycles are in the "
             f"toolchain's runtime library ({', '.join(lib)}). Counting only your own code, the best case is "
-            f"{format_duration(self.user_time_lb_s)}, which does not exceed the deadline. Faster routines "
+            f"{format_duration(self.user_time_lb_s)}, which does not exceed {limit}. Faster routines "
             "(in the part's ROM, or hand-written) would be a different binary that this verdict does not cover."
             + self.target.library_note_text]
 
 
-def decide(target: Target, builds: list[TimingBuild], deadline_s: float | None = None) -> TimingResult:
+def decide(target: Target, builds: list[TimingBuild], deadline_s: float | None = None,
+           load_limit: Fraction = FULL) -> TimingResult:
     ok = [b for b in builds if b.ok]
     if not ok:
         first = builds[0]  # the other builds almost always fail for the same reason
         raise RuntimeError(f"no build could be traced. {first.label}: {first.error}")
     best = min(ok, key=lambda b: b.cost.cycles)
-    res = TimingResult(target, best.cost, deadline_s, best.label, list(builds))
+    res = TimingResult(target, best.cost, deadline_s, best.label, list(builds), load_limit=load_limit)
     known = [b for b in ok if b.cost.user_cycles is not None]
     if known:
         own = min(known, key=lambda b: b.cost.user_cycles)
@@ -216,9 +263,9 @@ def decide(target: Target, builds: list[TimingBuild], deadline_s: float | None =
 
 
 def lower_bound(target: Target, trace: Trace, deadline_s: float | None = None,
-                origins: Origins | None = None) -> TimingResult:
+                origins: Origins | None = None, load_limit: Fraction = FULL) -> TimingResult:
     """The bound from one trace, with no envelope."""
-    return decide(target, [TimingBuild("as traced", True, cost=cost_trace(trace, origins))], deadline_s)
+    return decide(target, [TimingBuild("as traced", True, cost=cost_trace(trace, origins))], deadline_s, load_limit)
 
 
 def measure_elf(label: str, elf: Path, core: str, entry: str, measure: str | None = None,

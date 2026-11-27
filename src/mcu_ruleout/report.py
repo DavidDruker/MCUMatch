@@ -12,6 +12,7 @@ from importlib.metadata import PackageNotFoundError, version
 from . import __version__
 from . import memory as M
 from . import timing as T
+from .limits import FULL, format_at_least, format_percent
 from .shortlist import Row, Shortlist
 from .targets import Target
 from .timing import format_duration
@@ -98,6 +99,9 @@ def _memory_core_json(res: M.MemoryResult) -> dict:
     return {
         "verdict": res.verdict, "ruled_out": res.ruled_out, "reasons": res.reasons,
         "holds_without_library": res.holds_without_library, "cautions": res.cautions,
+        "over_capacity": res.over_capacity,
+        "flash_use_limit": float(res.flash_limit), "ram_use_limit": float(res.ram_limit),
+        "flash_use_at_least": res.flash_use_lb, "ram_use_at_least": res.ram_use_lb,
         "lower_bounds": {"flash_bytes": res.flash_lb, "flash_from": res.flash_lb_from,
                          "ram_bytes": res.ram_lb, "ram_from": res.ram_lb_from,
                          "your_code_flash_bytes": res.user_flash_lb, "your_code_ram_bytes": res.user_ram_lb},
@@ -138,6 +142,11 @@ def print_memory(res: M.MemoryResult, inputs: dict, vers: dict) -> None:
     print(f"Capacity:     flash {t.flash_capacity:>12,} B   "
           f"({' + '.join(f'{r.name} {r.size:,}' for r in t.flash)})")
     print(f"              RAM   {t.ram_capacity:>12,} B   ({' + '.join(f'{r.name} {r.size:,}' for r in t.ram)})")
+    print(f"Use:          flash at least {format_at_least(res.flash_use_lb)} of capacity, "
+          f"RAM at least {format_at_least(res.ram_use_lb)}")
+    if (res.flash_limit, res.ram_limit) != (FULL, FULL):
+        print(f"Use limits:   flash {format_percent(res.flash_limit)} of capacity, RAM {format_percent(res.ram_limit)}"
+              "   (yours; a need above a limit is ruled out)")
     print(f"\nVERDICT: {res.verdict}")
     for r in res.reasons:
         print(f"  - {r}")
@@ -175,6 +184,8 @@ def _timing_core_json(res: T.TimingResult) -> dict:
         "holds_without_library": res.holds_without_library, "cautions": res.cautions,
         "cycles_lower_bound": res.cycles_lb, "lower_bound_from": res.label,
         "clock_hz": res.clock_hz, "time_lower_bound_s": res.time_lb_s, "deadline_s": res.deadline_s,
+        "load_limit": float(res.load_limit), "allowed_time_s": res.allowed_s,
+        "best_case_load": res.best_case_load, "over_deadline": res.over_deadline,
         "required_clock_hz": res.required_clock_hz,
         "your_code_cycles_lower_bound": res.user_cycles_lb, "your_code_time_lower_bound_s": res.user_time_lb_s,
     }
@@ -226,6 +237,10 @@ def print_timing(res: T.TimingResult, built: str, call_args: tuple[int, ...], ve
     print(f"Time lower bound:       {res.time_lb_s * us:>14,.3f} us")
     if deadline is not None:
         print(f"Deadline:               {deadline * us:>14,.3f} us")
+        if res.load_limit != FULL:
+            print(f"Load limit:             {res.allowed_s * us:>14,.3f} us   "
+                  f"({format_percent(res.load_limit)} of the deadline; yours)")
+        print(f"Best-case load:         at least {format_at_least(res.best_case_load)} of the deadline")
     print("\n  class                instructions        cycles")
     for cls, (n, c) in sorted(res.by_class.items(), key=lambda kv: -kv[1][1]):
         print(f"  {cls:<18} {n:>14,} {c:>13,}")
@@ -242,7 +257,12 @@ def print_timing(res: T.TimingResult, built: str, call_args: tuple[int, ...], ve
             print(f"  {origin:<18} {c:>14,} {share:>12.1%}")
     print(f"\nVERDICT: {res.verdict}")
     if res.ruled_out:
-        print(f"  - even in the best case it needs {res.time_lb_s * us:,.3f} us > deadline {deadline * us:,.3f} us")
+        if res.over_deadline:
+            print(f"  - even in the best case it needs {res.time_lb_s * us:,.3f} us > deadline {deadline * us:,.3f} us")
+        else:
+            print(f"  - even in the best case it needs {res.time_lb_s * us:,.3f} us > {res.allowed_s * us:,.3f} us, "
+                  f"which is {format_percent(res.load_limit)} of the {deadline * us:,.3f} us deadline")
+            print("  - the best case does not exceed the deadline itself, only the load limit you set")
         if res.holds_without_library and res.library_cycles:
             print(f"  - this holds even if library routines took no time: your own code alone needs "
                   f"{format_duration(res.user_time_lb_s)}")
@@ -280,7 +300,8 @@ def _floors(sl: Shortlist) -> list[dict]:
         out.append({
             "core": g.core, "gcc_flags": list(g.gcc_flags), "targets": [t.id for t in g.targets],
             "flash_bytes": g.flash_lb, "ram_bytes": g.ram_lb, "cycles": cycles,
-            "required_clock_hz": cycles / sl.deadline_s if cycles is not None and sl.deadline_s else None,
+            "required_clock_hz": (cycles / (sl.deadline_s * float(sl.limits.load))
+                                  if cycles is not None and sl.deadline_s else None),
             "memory_builds": [{"label": m.label, "ok": m.ok, **({"error": m.error} if not m.ok else
                                {"flash_bytes": m.flash, "ram_bytes": m.ram})} for m in g.measurements],
             "timing_builds": [_build_json(b) for b in g.builds],
@@ -291,7 +312,7 @@ def _floors(sl: Shortlist) -> list[dict]:
 
 def shortlist_json(sl: Shortlist, inputs: dict, vers: dict) -> dict:
     return {
-        "deadline_s": sl.deadline_s, "timing_skipped": sl.timing_skipped,
+        "deadline_s": sl.deadline_s, "limits": sl.limits.as_json(), "timing_skipped": sl.timing_skipped,
         "counts": {"targets": len(sl.rows), "ruled_out": len(sl.ruled_out),
                    "not_ruled_out": len(sl.remaining), "no_verdict": len(sl.failed)},
         "not_ruled_out": [r.target.id for r in sl.remaining],
@@ -311,15 +332,28 @@ def _row_cells(r: Row, deadline_s: float | None) -> list[str]:
     flash = _need_have(r.memory.flash_lb, t.flash_capacity) if r.memory else "-"
     ram = _need_have(r.memory.ram_lb, t.ram_capacity) if r.memory else "-"
     time = format_duration(r.timing.time_lb_s) if r.timing else "-"
+    load = format_at_least(r.timing.best_case_load) if r.timing and r.timing.best_case_load is not None else "-"
     status = r.status + (" *" if r.depends_on_library else "")
     name = t.id if t.person_checked else f"{t.id} {UNCHECKED_MARK}"
     return [name, t.core.replace("cortex-", ""), flash, ram, f"{time} at {format_clock(t.max_clock_hz.value)}"
-            if r.timing else time, status]
+            if r.timing else time, load, status]
 
 
-_HEAD = ["target", "core", "flash, at least", "RAM, at least", "best-case time", "verdict"]
+_HEAD = ["target", "core", "flash, at least", "RAM, at least", "best-case time", "load, at least", "verdict"]
 _LIBRARY_NOTE = ("* depends on library code: the rule-out would not stand if the toolchain's runtime library "
                  "routines were replaced by faster or smaller ones. Run the single check for details.")
+
+
+def _limit_lines(sl: Shortlist) -> list[str]:
+    """The limits the user set, in words. Empty when everything is at 100 %."""
+    lim, out = sl.limits, []
+    if lim.load != FULL:
+        out.append(f"ruled out when the best-case time is above {format_percent(lim.load)} of the deadline"
+                   + (f" ({format_duration(sl.deadline_s * float(lim.load))})" if sl.deadline_s else ""))
+    for name, share in (("flash", lim.flash), ("RAM", lim.ram)):
+        if share != FULL:
+            out.append(f"ruled out when the smallest build needs more than {format_percent(share)} of the {name}")
+    return out
 
 
 def _footnotes(sl: Shortlist) -> list[str]:
@@ -355,7 +389,8 @@ def _floor_lines(sl: Shortlist) -> list[str]:
         if f["cycles"] is not None:
             parts.append(f"{f['cycles']:,} cycles")
         if f["required_clock_hz"]:
-            parts.append(f"so a clock above {format_clock(f['required_clock_hz'])} for the deadline")
+            at = "for the deadline" if sl.limits.load == FULL else f"at {format_percent(sl.limits.load)} load"
+            parts.append(f"so a clock above {format_clock(f['required_clock_hz'])} {at}")
         # The flags tell two groups of the same core apart; otherwise the core says it all.
         flags = f" ({' '.join(f['gcc_flags'])})" if per_core[f["core"]] > 1 else ""
         lines.append(f"{f['core']}{flags}: " + ("; ".join(parts) if parts else "no build succeeded"))
@@ -369,6 +404,8 @@ def print_shortlist(sl: Shortlist, inputs: dict, vers: dict) -> None:
         if k != "mcu-ruleout":
             print(f"            {k} {v}")
     print("Deadline:   " + (format_duration(sl.deadline_s) if sl.deadline_s else "none given, so timing rules nothing out"))
+    for line in _limit_lines(sl):
+        print(f"Limits:     {line}")
     if sl.timing_skipped:
         print(f"Timing:     not checked: {sl.timing_skipped}")
     table = [_HEAD] + [_row_cells(r, sl.deadline_s) for r in sl.rows]
@@ -400,6 +437,7 @@ def shortlist_markdown(sl: Shortlist, inputs: dict, vers: dict) -> str:
             "work; it only could not be proven impossible. Measure on hardware before committing.", ""]
     out += ["## Input", "", f"- {inputs['description']}"]
     out += [f"- Deadline: {format_duration(sl.deadline_s) if sl.deadline_s else 'none given'}"]
+    out += [f"- Limit set by the user: {line}" for line in _limit_lines(sl)]
     out += [f"- {k} {v}" for k, v in vers.items()]
     if sl.timing_skipped:
         out.append(f"- Timing not checked: {sl.timing_skipped}")

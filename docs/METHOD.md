@@ -105,6 +105,33 @@ part, the caution quotes it. A prebuilt ELF has no linker map, so no split is re
 The "your own code" figure assumes the replacement library returns the same values. A library
 that rounds differently could send your code down a different path.
 
+## Load and use limits
+
+By default a part is ruled out only when a lower bound exceeds the whole budget: the best-case
+time is above the deadline, or the smallest build is above the capacity. Few designs plan to use
+all of either, so each budget can be lowered:
+
+| Option | Rules a part out when | Default |
+|---|---|---|
+| `--max-load PERCENT` | the best-case time is above that share of the deadline | 100 |
+| `--max-flash-use PERCENT` | the smallest build needs more than that share of the flash | 100 |
+| `--max-ram-use PERCENT` | the smallest build needs more than that share of the RAM | 100 |
+
+- **Still a proof.** The lower bound is the same; only the threshold moves. "The best case is above
+  70 % of the deadline" is as certain as "the best case is above the deadline".
+- **Still never a fit.** A part under the limit is `NOT RULED OUT: measure on hardware`, as before.
+  The limit is yours, not the tool's: it does not say that 70 % is enough headroom for anything.
+- **The verdict says which statement was proven.** A part whose best case misses the whole
+  deadline keeps `RULED OUT (timing, best case)`. A part that is only above your limit gets
+  `RULED OUT (timing, best case above your 70 % load limit)`, and the memory check does the same
+  with `RULED OUT (memory, above your 80 % flash use limit)`.
+- **Exactly at the limit is not above it.** The comparison is done in exact fractions, so a best
+  case of exactly 70 % of the deadline is not ruled out at `--max-load 70`.
+- **The load is always printed** when a deadline is given, as "at least N % of the deadline". It
+  is the lower bound divided by the deadline, rounded down. It is not a prediction of the load.
+- **Floors move with the limit.** The shortlist's per-core floor becomes the clock needed at that
+  load: cycles / (deadline x limit).
+
 ## Shortlist
 
 `shortlist` runs both checks for every target and prints one row per target.

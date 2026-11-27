@@ -16,6 +16,7 @@ from typing import Callable
 from . import memory as M
 from . import timing as T
 from .emu import DEFAULT_MAX_INSNS
+from .limits import Limits
 from .targets import Target
 
 
@@ -83,7 +84,8 @@ class Row:
     @property
     def status(self) -> str:
         if self.ruled_out:
-            return "RULED OUT (" + ", ".join(self.ruled_out_by) + ")"
+            reasons = [c.short_reason for c in (self.memory, self.timing) if c and c.ruled_out]
+            return "RULED OUT (" + ", ".join(reasons) + ")"
         return "not ruled out" if self.evaluated else "no verdict"
 
 
@@ -93,6 +95,7 @@ class Shortlist:
     groups: list[Group]
     deadline_s: float | None = None
     timing_skipped: str = ""  # why the timing check did not run, if it did not
+    limits: Limits = Limits()
 
     @property
     def ruled_out(self) -> list[Row]:
@@ -121,7 +124,8 @@ def group_targets(targets: list[Target]) -> list[Group]:
 def run(tc, targets: list[Target], sources: list[Path], entry: str, measure: str | None,
         user_flags: tuple[str, ...], work_dir: Path, include_dirs=(), defines=(),
         deadline_s: float | None = None, envelope: bool = True, call_args: tuple[int, ...] = (),
-        max_insns: int = DEFAULT_MAX_INSNS, progress: Callable[[str], None] | None = None) -> Shortlist:
+        max_insns: int = DEFAULT_MAX_INSNS, progress: Callable[[str], None] | None = None,
+        limits: Limits = Limits()) -> Shortlist:
     say = progress or (lambda _msg: None)
     groups = group_targets(targets)
     skipped = "" if have_emulator() else "Unicorn is not installed (pip install mcu-ruleout[emu])"
@@ -150,16 +154,16 @@ def run(tc, targets: list[Target], sources: list[Path], entry: str, measure: str
             try:
                 if g.memory_error:
                     raise RuntimeError(g.memory_error)
-                row.memory = M.decide(t, g.measurements)
+                row.memory = M.decide(t, g.measurements, limits.flash, limits.ram)
             except RuntimeError as e:
                 row.errors.append(f"memory: {e}")
             if not skipped:
                 try:
                     if g.timing_error:
                         raise RuntimeError(g.timing_error)
-                    row.timing = T.decide(t, g.builds, deadline_s)
+                    row.timing = T.decide(t, g.builds, deadline_s, limits.load)
                 except RuntimeError as e:
                     row.errors.append(f"timing: {e}")
             rows.append(row)
     rows.sort(key=lambda r: (r.ruled_out, not r.evaluated, r.target.id))
-    return Shortlist(rows, groups, deadline_s, skipped)
+    return Shortlist(rows, groups, deadline_s, skipped, limits)

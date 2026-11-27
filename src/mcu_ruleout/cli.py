@@ -20,6 +20,7 @@ from pathlib import Path
 
 from . import __version__, report
 from . import memory as M
+from .limits import FULL, Limits, parse_percent
 from .targets import SUPPORTED_CORES, Target, TargetSpecError, builtin_target_paths, find_target, load_target
 from .toolchain import ToolchainNotFound, find_toolchain
 
@@ -148,7 +149,7 @@ def cmd_memory(args) -> int:
                   "target_flags": list(target.gcc_flags), "defines": args.define,
                   "description": f"{', '.join(_source_names(args))}  entry={','.join(args.entry)}  "
                                  f"flags={' '.join(target.gcc_flags + flags)}"}
-    res = M.decide(target, measurements)
+    res = M.decide(target, measurements, args.max_flash_use, args.max_ram_use)
     vers = report.versions(tc_version)
     if args.json:
         print(json.dumps(report.memory_json(res, inputs, vers), indent=2))
@@ -166,7 +167,7 @@ def cmd_timing(args) -> int:
         raise SystemExit("give either source files (or --example) or --elf")
     if not args.entry:
         raise SystemExit("--entry is required")
-    deadline = T.parse_duration(args.deadline) if args.deadline else None
+    deadline = _deadline(args)
     call_args = tuple(int(a, 0) for a in args.arg)
     tc_version = None
     if args.elf:
@@ -183,13 +184,21 @@ def cmd_timing(args) -> int:
                                        [Path(i) for i in args.include], args.define, not args.no_envelope,
                                        call_args, args.max_insns, tuple(args.entry[1:]))
         built = f"{', '.join(_source_names(args))}  flags={' '.join(target.gcc_flags + flags)}"
-    res = T.decide(target, builds, deadline)
+    res = T.decide(target, builds, deadline, args.max_load)
     vers = report.versions(tc_version, res.trace.unicorn_model)
     if args.json:
         print(json.dumps(report.timing_json(res, built, call_args, vers), indent=2))
     else:
         report.print_timing(res, built, call_args, vers)
     return EXIT_RULED_OUT if res.ruled_out else EXIT_NOT_RULED_OUT
+
+
+def _deadline(args) -> float | None:
+    from .timing import parse_duration
+
+    if args.max_load != FULL and not args.deadline:
+        raise SystemExit("--max-load is a share of the deadline, so it needs --deadline")
+    return parse_duration(args.deadline) if args.deadline else None
 
 
 def _shortlist_targets(args) -> list[Target]:
@@ -214,7 +223,8 @@ def cmd_shortlist(args) -> int:
     if not args.entry:
         raise SystemExit("--entry is required")
     targets = _shortlist_targets(args)
-    deadline = T.parse_duration(args.deadline) if args.deadline else None
+    deadline = _deadline(args)
+    limits = Limits(args.max_load, args.max_flash_use, args.max_ram_use)
     call_args = tuple(int(a, 0) for a in args.arg)
     tc = find_toolchain(args.toolchain)
     flags = tuple(shlex.split(args.cflags))
@@ -223,7 +233,7 @@ def cmd_shortlist(args) -> int:
         sl = S.run(tc, targets, sources, args.entry[0], args.measure, flags,
                    Path(args.keep_build) if args.keep_build else Path(tmp), [Path(i) for i in args.include],
                    args.define, deadline, not args.no_envelope, call_args, args.max_insns,
-                   progress=lambda msg: print(f"... {msg}", file=sys.stderr, flush=True))
+                   progress=lambda msg: print(f"... {msg}", file=sys.stderr, flush=True), limits=limits)
     models = sorted({b.cost.trace.unicorn_model for g in sl.groups for b in g.builds if b.ok})
     vers = report.versions(tc.version(), ", ".join(models) or None)
     inputs = {"sources": _source_names(args), "entry": args.entry[0], "measure": args.measure,
@@ -349,10 +359,29 @@ def _build_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--json", action="store_true", help="machine-readable output")
 
 
+def _percent(option: str):
+    def parse(text: str):
+        try:
+            return parse_percent(text, option)
+        except ValueError as e:
+            raise argparse.ArgumentTypeError(str(e)) from e
+    return parse
+
+
+def _memory_limit_options(p: argparse.ArgumentParser) -> None:
+    for option, what in (("--max-flash-use", "flash"), ("--max-ram-use", "RAM")):
+        p.add_argument(option, type=_percent(option), default=FULL, metavar="PERCENT",
+                       help=f"rule out when the smallest build needs more than this share of the {what} "
+                            "(default 100)")
+
+
 def _timing_options(p: argparse.ArgumentParser) -> None:
     p.add_argument("--measure", help="count only inside this function (default: the entry)")
     p.add_argument("--arg", action="append", default=[], help="integer argument for the entry call; repeatable")
     p.add_argument("--deadline", help="deadline with unit, e.g. 250us, 2ms, 0.001s")
+    p.add_argument("--max-load", type=_percent("--max-load"), default=FULL, metavar="PERCENT",
+                   help="rule out when the best-case time is above this share of the deadline, e.g. 70 "
+                        "(default 100: only when it misses the whole deadline)")
     p.add_argument("--max-insns", type=int, default=50_000_000, help="stop after this many counted instructions")
 
 
@@ -368,6 +397,7 @@ def main(argv: list[str] | None = None) -> int:
     s.add_argument("--core", action="append", default=[], choices=SUPPORTED_CORES, help="only targets with this core")
     s.add_argument("--entry", action="append", default=[], help="function the emulator calls")
     _timing_options(s)
+    _memory_limit_options(s)
     _build_options(s)
     s.add_argument("--report", help="also write a Markdown report, with the source of every capacity figure")
     s.set_defaults(func=cmd_shortlist)
@@ -378,6 +408,7 @@ def main(argv: list[str] | None = None) -> int:
     m.add_argument("--elf", help="check a prebuilt ELF instead of building sources")
     m.add_argument("--entry", action="append", default=[],
                    help="entry symbol; repeat for more. The first one is used for the stack frame")
+    _memory_limit_options(m)
     _build_options(m)
     m.set_defaults(func=cmd_memory)
 

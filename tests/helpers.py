@@ -1,6 +1,7 @@
 """Shared test helpers. Tests that need arm-none-eabi-gcc are skipped when it is missing."""
 from __future__ import annotations
 
+import re
 import subprocess
 import unittest
 from functools import lru_cache
@@ -13,6 +14,16 @@ DATA = Path(__file__).resolve().parent / "data"
 FIR = REPO / "kernels" / "fir" / "fir_f32.c"
 MEMTEST = REPO / "kernels" / "memtest" / "static_buffers.c"
 STACK_CASES = DATA / "stack_cases.c"
+
+# Phrases no output may contain: a fit, a pass, headroom, a ranking or a recommendation. The tool
+# only ever proves that something is impossible. ("Recommended" alone is not listed: datasheet
+# table titles such as "Recommended Operating Conditions" appear in citations.)
+NEVER_CLAIMED = re.compile(
+    r"\bwill fit\b|\bfits on\b|\bfits in\b|\blikely fits\b|\bbest fit\b|\bruns in\b|\bwill meet\b"
+    # "This is not a 'meets the deadline' verdict" names the claim in quotes in order to deny it.
+    r"|\bmeets the deadline in\b|(?<!')\bmeets (the|your) (load|limit|deadline)\b|\bis fast enough\b"
+    r"|\b(has|have|with|enough|sufficient) headroom\b|\bwithin (the |your )?budget\b|\bsafe\b"
+    r"|\bbest choice\b|\bwe recommend\b|\brecommended (part|target|choice)\b", re.I)
 
 CORE_FLAGS = {
     "m0plus": ("-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"),

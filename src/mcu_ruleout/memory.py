@@ -6,10 +6,12 @@ The second is NOT a claim that the code fits.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from fractions import Fraction
 from pathlib import Path
 
 from .build import BuildConfig, BuildResult, build, envelope_configs, user_config
 from .elfsize import ElfSizes, read_sizes
+from .limits import FULL, format_percent
 from .origin import Origins, parse_map
 from .stack import CallGraphBound, FrameBound, entry_frame_lower_bound, worst_case_from_callgraph
 from .targets import Target
@@ -93,14 +95,53 @@ class MemoryResult:
     user_flash_lb: int | None = None  # the same bounds counting only your own code
     user_ram_lb: int | None = None
     cautions: list[str] = field(default_factory=list)
+    flash_limit: Fraction = FULL  # share of each capacity the smallest build may use before it is ruled out
+    ram_limit: Fraction = FULL
+
+    def _resources(self) -> list[tuple[str, int, int | None, int, Fraction]]:
+        """(name, need, your own code's need, capacity, limit) for flash and for RAM."""
+        t = self.target
+        return [("flash", self.flash_lb, self.user_flash_lb, t.flash_capacity, self.flash_limit),
+                ("RAM", self.ram_lb, self.user_ram_lb, t.ram_capacity, self.ram_limit)]
 
     @property
     def ruled_out(self) -> bool:
         return bool(self.reasons)
 
     @property
+    def over_capacity(self) -> bool:
+        """The smallest build exceeds a whole capacity, whatever use limit was asked for."""
+        return any(need > cap for _, need, _, cap, _ in self._resources())
+
+    @property
+    def over_limit_only(self) -> list[str]:
+        """'80 % flash', '90 % RAM': the use limits that are exceeded while the capacity is not."""
+        return [f"{format_percent(limit)} {name}" for name, need, _, cap, limit in self._resources()
+                if cap >= need > cap * limit]
+
+    @property
     def verdict(self) -> str:
-        return RULED_OUT if self.ruled_out else NOT_RULED_OUT
+        if not self.ruled_out:
+            return NOT_RULED_OUT
+        if self.over_capacity:
+            return RULED_OUT
+        return f"RULED OUT (memory, above your {' and '.join(self.over_limit_only)} use limit)"
+
+    @property
+    def short_reason(self) -> str:
+        """How the shortlist names this rule-out: 'memory', or 'memory: above 80 % flash use'."""
+        if self.over_capacity:
+            return "memory"
+        return f"memory: above {' and '.join(self.over_limit_only)} use"
+
+    @property
+    def flash_use_lb(self) -> float:
+        """Smallest flash need as a share of the capacity. A lower bound, not a prediction."""
+        return self.flash_lb / self.target.flash_capacity
+
+    @property
+    def ram_use_lb(self) -> float:
+        return self.ram_lb / self.target.ram_capacity
 
     @property
     def holds_without_library(self) -> bool | None:
@@ -108,7 +149,7 @@ class MemoryResult:
         out, or the split is unknown (prebuilt ELF)."""
         if not self.ruled_out or self.user_flash_lb is None or self.user_ram_lb is None:
             return None
-        return self.user_flash_lb > self.target.flash_capacity or self.user_ram_lb > self.target.ram_capacity
+        return any(own > cap * limit for _, _, own, cap, limit in self._resources())
 
 
 def measure_elf(label: str, elf: Path, entry: str | None, ci_files: list[Path] = (),
@@ -144,30 +185,35 @@ def measure_sources(
     return out
 
 
-def decide(target: Target, measurements: list[Measurement]) -> MemoryResult:
+def decide(target: Target, measurements: list[Measurement], flash_limit: Fraction = FULL,
+           ram_limit: Fraction = FULL) -> MemoryResult:
+    """Rule out when the smallest build needs more than `limit` of a capacity (the whole of it by default)."""
     ok = [m for m in measurements if m.ok]
     if not ok:
         first = measurements[0]  # the other builds almost always fail for the same reason
         raise RuntimeError(f"no build succeeded. {first.label}: build failed: {first.error}")
-    res = MemoryResult(target, measurements)
+    res = MemoryResult(target, measurements, flash_limit=flash_limit, ram_limit=ram_limit)
     fmin = min(ok, key=lambda m: m.flash)
     rmin = min(ok, key=lambda m: m.ram)
     res.flash_lb, res.flash_lb_from = fmin.flash, fmin.label
     res.ram_lb, res.ram_lb_from = rmin.ram, rmin.label
-    if res.flash_lb > target.flash_capacity:
-        res.reasons.append(f"flash: needs at least {res.flash_lb:,} B > capacity {target.flash_capacity:,} B")
-    if res.ram_lb > target.ram_capacity:
-        res.reasons.append(f"RAM: needs at least {res.ram_lb:,} B > capacity {target.ram_capacity:,} B")
     known = [m for m in ok if m.origins is not None]
     if known:
         res.user_flash_lb = min(m.user_flash for m in known)
         res.user_ram_lb = min(m.user_ram for m in known)
-        for name, need, own, cap in (("flash", res.flash_lb, res.user_flash_lb, target.flash_capacity),
-                                     ("RAM", res.ram_lb, res.user_ram_lb, target.ram_capacity)):
-            if need > cap >= own:
-                res.cautions.append(
-                    f"The {name} rule-out depends on library code. Your own code needs at least {own:,} B, "
-                    f"which is within the {cap:,} B capacity; the rest is the toolchain's runtime library. "
-                    "A smaller library, or routines the part has in ROM, would be a different binary "
-                    "that this verdict does not cover." + target.library_note_text)
+    for name, need, own, cap, limit in res._resources():
+        allowed = cap * limit  # exact: a need that equals the limit is not ruled out
+        if need > cap:
+            res.reasons.append(f"{name}: needs at least {need:,} B > capacity {cap:,} B")
+        elif need > allowed:
+            res.reasons.append(f"{name}: needs at least {need:,} B > your {format_percent(limit)} use limit "
+                               f"({int(allowed):,} B of the {cap:,} B capacity)")
+        if own is not None and need > allowed >= own:
+            within = (f"the {cap:,} B capacity" if limit == FULL
+                      else f"your {format_percent(limit)} use limit ({int(allowed):,} B)")
+            res.cautions.append(
+                f"The {name} rule-out depends on library code. Your own code needs at least {own:,} B, "
+                f"which is within {within}; the rest is the toolchain's runtime library. "
+                "A smaller library, or routines the part has in ROM, would be a different binary "
+                "that this verdict does not cover." + target.library_note_text)
     return res
