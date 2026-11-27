@@ -252,8 +252,10 @@ document page, and the tool shows which specs have been.
     the table:** MLA and MLS are 1 cycle, not 2. That lowers the count, which is the safe
     direction, so it is applied (cycle table version 2). The errata changes nothing else in
     Table 3-1 and does not touch Tables 3.2 or 7.1. FPv4-SP is stated in the Cortex-M4 manual,
-    s7.1 p.7-2. Details: the addendum in `docs/history/M3_TIMING.md`. Still to do by a person:
-    open the errata PDF, and compare Tables 3.2 and 7.1 with Arm's current manual (100166).
+    s7.1 p.7-2. The agent also compared all three tables with Arm's current manual for r0p1
+    (document 100166) and found no count lower than the table's. Details: the addendum in
+    `docs/history/M3_TIMING.md`. Still to do by a person: open the errata PDF and confirm the
+    two rows.
   - Read Arm's Cortex-M4 r0p0 Errata 01 PDF. Record whether any cycle count in
     `cycle_tables/cortex-m4f.toml` changes. If one does, the change must only lower or keep a count
     for the bound to stay a lower bound; a raised count needs a decision and a log entry.

@@ -55,9 +55,10 @@ model is a true lower bound on real silicon. See [VALIDATION.md](VALIDATION.md).
   - **Gaps in instruction-set checks:** Unicorn's Cortex-M3 model accepted a DSP instruction that core lacks.
   - **More permissive than silicon:** Unicorn runs FPU code without the FPU being enabled.
 - **Cortex-M4 table revision.** The counts come from the r0p0 manual (DDI 0439B) with its Errata 01
-  applied, which lowers MLA and MLS from 2 cycles to 1. The errata was read by an automated agent
-  from text extracted from the PDF, not by a person. Tables 3.2 and 7.1 were not compared with the
-  later r0p1 manual (Arm document 100166).
+  applied, which lowers MLA and MLS from 2 cycles to 1. An automated agent read the errata from
+  text extracted from the PDF, and compared all three tables with Arm's current manual for r0p1
+  (document 100166): it found no count there that is lower than the table's. A person has not
+  repeated either reading.
 - **Not modelled:** flash wait states, caches, flash accelerators, bus contention, interrupts,
   exceptions, RTOS, DMA, peripherals, unaligned-access penalties.
 - **No supervisor calls, breakpoints or sleep instructions** in the measured code.

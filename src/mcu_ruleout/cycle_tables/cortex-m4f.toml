@@ -14,7 +14,7 @@ revision = "r0p0 (ARM DDI 0439B), HTML issue b, with Errata 01 applied"
 where = "Programmers Model > Instruction set summary: Table 3.1 (footnotes a-d), Table 3.2, Load/store timings; Floating Point Unit > FPU instruction set: Table 7.1 and its Note"
 url = "https://developer.arm.com/documentation/ddi0439/b/Programmers-Model/Instruction-set-summary/Cortex-M4-instructions"
 accessed = 2026-11-24
-note = "Table version 2 applies 'Cortex-M4 Technical Reference Manual ARM DDI 0439B Errata 01' (ARM DDI 0439B_Errata_01, ID033110, 5 pages), which Arm marks as the latest issue. Its one erratum corrects Table 3-1: MLA and MLS take 1 cycle, not 2. It changes nothing in Table 3.2 or Table 7.1. The errata was read on 2026-11-27 by an automated agent from text extracted from the PDF, and compared row by row with issue B; a person has not checked it. Lowering a count can only lower the bound, so the correction is applied without waiting for that check."
+note = "Table version 2 applies 'Cortex-M4 Technical Reference Manual ARM DDI 0439B Errata 01' (ARM DDI 0439B_Errata_01, ID033110, 5 pages), which Arm marks as the latest issue. Its one erratum corrects Table 3-1: MLA and MLS take 1 cycle, not 2. It changes nothing in Table 3.2 or Table 7.1. The errata was read on 2026-11-27 by an automated agent from text extracted from the PDF, and compared row by row with issue B; a person has not checked it. Lowering a count can only lower the bound, so the correction is applied without waiting for that check. The same agent compared Tables 3.1, 3.2 and 7.1 with Arm's current manual for r0p1 (document 100166, issue 0001-04) and found no count lower than this table's."
 
 [sources.errata]
 title = "Cortex-M4 Technical Reference Manual ARM DDI 0439B Errata 01"
