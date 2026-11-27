@@ -158,6 +158,27 @@ class TestHandComputedSequences(unittest.TestCase):
         self.assertEqual(lower_bound(TINY, tr).cycles_lb, 3)  # adds 1 + bx 2
         self.assertEqual(dict(tr.by_function), {"leaf": 2})
 
+    def test_measured_function_reached_by_a_tail_call(self):
+        # At -O2 `return kernel(n)` becomes a plain branch, so the kernel returns straight to the
+        # harness's caller. The count must be the same as with an ordinary call.
+        src = ("__attribute__((noinline, noclone)) int kernel(int n)"
+               " { volatile int s = 0; for (int i = 0; i < n; i++) s += i; return s; }\n"
+               "int bench_tail(void) { return kernel(25); }\n"
+               "int bench_call(void) { volatile int r = kernel(25); return r; }\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "tail.c"
+            path.write_text(src, encoding="utf-8")
+            for core, name in (("m0plus", "cortex-m0plus"), ("m4f", "cortex-m4f")):
+                with self.subTest(core=core):
+                    r = build(toolchain(), CORE_FLAGS[core], [path], ["bench_tail", "bench_call", "kernel"],
+                              user_config(("-O2",)), Path(tmp) / core)
+                    self.assertTrue(r.ok, r.log)
+                    tail = run_trace(r.elf, name, "bench_tail", measure="kernel")
+                    call = run_trace(r.elf, name, "bench_call", measure="kernel")
+                    self.assertEqual(dict(tail.by_function), dict(call.by_function))
+                    self.assertEqual(lower_bound(TINY, tail).cycles_lb, lower_bound(TINY, call).cycles_lb)
+                    self.assertEqual(tail.return_value, 300)
+
     def test_m0_model_refuses_m4f_code(self):
         with self.assertRaises(EmulationError):
             run_trace(self.elf["m4f"], "cortex-m0plus", "seq_m4f")

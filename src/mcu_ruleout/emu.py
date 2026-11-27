@@ -180,7 +180,12 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
     if state["pending"] is not None:  # ended on a conditional branch: count the cheaper direction
         hits[(state["pending"][0], False)] += 1
     if state["active"] and measure != entry:
-        raise EmulationError(f"{measure} was entered but never returned before {entry} finished")
+        # A tail call (`return kernel(...)` compiled to a plain branch) leaves the entry's own return
+        # address in LR, so the measured function returns straight to the sentinel and the run ends
+        # there without another instruction for the hook to see. That is a normal return.
+        tail_called = state["ret"] == SENTINEL and mu.reg_read(A.UC_ARM_REG_SP) == state["sp"]
+        if not tail_called:
+            raise EmulationError(f"{measure} was entered but never returned before {entry} finished")
     if not trace.hits:
         raise EmulationError(f"{measure} was never executed (the compiler may have inlined or cloned it)")
     trace.return_value = mu.reg_read(A.UC_ARM_REG_R0)
