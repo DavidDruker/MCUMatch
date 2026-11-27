@@ -54,13 +54,15 @@ jobs:
           cat compact.txt summary.txt
           python .github/scripts/annotate_failures.py --notice "Specs against packs" compact.txt
           python scripts/check_against_packs.py --markdown > table.md 2> /dev/null
+          exit 0
+
+      - name: List every memory region the packs give
+        if: always()
+        run: |
+          set +e
           python scripts/check_against_packs.py --regions > regions.txt 2> /dev/null
           cat regions.txt
-          # Three notices, so each stays short enough to be kept whole.
-          awk -v n=3 '/^[^ ]/ { part = (count++ % n) } { print > ("regions-" part ".txt") }' regions.txt
-          for part in 0 1 2; do
-            python .github/scripts/annotate_failures.py --notice "Pack regions, part $((part + 1))" "regions-$part.txt"
-          done
+          python .github/scripts/annotate_failures.py --notices "Pack regions" regions.txt
           exit 0
 
       - name: Keep the tables with the run

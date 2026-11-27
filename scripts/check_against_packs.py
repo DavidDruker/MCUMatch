@@ -1,6 +1,6 @@
 """Cross-check the target specs against vendor CMSIS device family packs.
 
-    python scripts/check_against_packs.py [--packs packs] [--markdown | --compact] [SPEC_ID ...]
+    python scripts/check_against_packs.py [--packs packs] [--markdown | --compact | --regions] [SPEC_ID ...]
 
 A pack is a cross-check, never a source. A difference means "re-read the datasheet", not "copy
 the pack": packs describe a default configuration, while a spec takes the most generous figure the
@@ -10,6 +10,10 @@ datasheet allows (conditional RAM regions, special clock modes).
 `packs/`, which Git ignores. You can also put packs there by hand (https://www.keil.arm.com/packs/ or
 the vendor's site). A `.pack` file is a zip archive: either unzip it or leave it as it is; this
 script reads the `.pdsc` inside both.
+
+A pack lists more than program flash and RAM, so a total counts only some of a device's regions:
+see `PackDevice` below for the rules. `--regions` lists every region with the reason it was or was
+not counted.
 
 `scripts/pack_devices.toml` says which pack device each spec corresponds to, and records every
 difference that has been explained after re-reading the datasheet. An explained difference pins
@@ -32,16 +36,67 @@ ROOT = Path(__file__).resolve().parent.parent
 QUANTITIES = ("flash", "ram", "clock")
 
 
+NOT_DEFAULT = "not given to the linker by default"
+
+
+def _union(spans: list[tuple[int, int]]) -> list[tuple[int, int]]:
+    """Merge (start, end) address spans that touch or overlap."""
+    merged: list[tuple[int, int]] = []
+    for start, end in sorted(spans):
+        if merged and start <= merged[-1][1]:
+            merged[-1] = (merged[-1][0], max(merged[-1][1], end))
+        else:
+            merged.append((start, end))
+    return merged
+
+
 @dataclass
 class PackDevice:
+    """One device from a pack description.
+
+    A pack lists more than program flash and RAM: peripheral address windows, the same memory at a
+    second address, windows for external flash, configuration rows. So a total counts only
+
+    - regions whose access string makes them RAM (readable and writable) or program flash
+      (readable and executable, not writable), and that are not marked as a peripheral or as an
+      alias of another region;
+    - of those, the regions the pack gives to the linker by default (`default="1"`), or all of them
+      when the pack marks none that way;
+    - each address once, however many regions cover it.
+
+    These rules use what the pack format says about a region. They know nothing about the chip, so
+    `left_out` reports every region that was not counted, with the reason.
+    """
     name: str
     pack: str  # file the description came from
-    memories: dict[str, dict] = field(default_factory=dict)  # region name -> {"size", "kind", "start", "access"}
+    # region name -> {"size", "kind", "start", "access", "default", "skip"}
+    memories: dict[str, dict] = field(default_factory=dict)
     clock_hz: int | None = None
 
+    def counted(self, kind: str) -> dict[str, dict]:
+        usable = {n: m for n, m in self.memories.items() if m["kind"] == kind and not m["skip"]}
+        return {n: m for n, m in usable.items() if m["default"]} or usable
+
     def total(self, kind: str) -> int | None:
-        sizes = [m["size"] for m in self.memories.values() if m["kind"] == kind]
-        return sum(sizes) if sizes else None
+        regions = self.counted(kind).values()
+        if not regions:
+            return None
+        placed = _union([(m["start"], m["start"] + m["size"]) for m in regions if m["start"] is not None])
+        return sum(end - start for start, end in placed) + sum(m["size"] for m in regions if m["start"] is None)
+
+    def left_out(self, kind: str) -> dict[str, str]:
+        """Region name -> why it is not in the total. A region that lies inside a counted one is
+        counted, so it is not listed."""
+        counted = self.counted(kind)
+        placed = _union([(m["start"], m["start"] + m["size"]) for m in counted.values() if m["start"] is not None])
+        out = {}
+        for name, m in self.memories.items():
+            if m["kind"] != kind or name in counted:
+                continue
+            inside = m["start"] is not None and any(a <= m["start"] and m["start"] + m["size"] <= b for a, b in placed)
+            if m["skip"] or not inside:
+                out[name] = m["skip"] or NOT_DEFAULT
+        return out
 
     def value(self, quantity: str) -> int | None:
         return self.clock_hz if quantity == "clock" else self.total(quantity)
@@ -54,19 +109,26 @@ def _int(text: str | None) -> int | None:
         return None
 
 
-def _memory_kind(attrs: dict) -> str | None:
-    """'flash' or 'ram' for a <memory> element, from its access string or its legacy id."""
+def _memory_kind(attrs: dict) -> tuple[str | None, str | None]:
+    """('flash' or 'ram', the reason the region is not counted or None) for a <memory> element,
+    from its access string or its legacy id."""
     access = attrs.get("access")
     if access:
-        if "w" in access:
-            return "ram"
-        return "flash" if ("x" in access or "r" in access) else None
-    ident = attrs.get("id", "")
-    if ident.startswith("IROM"):
-        return "flash"
-    if ident.startswith("IRAM"):
-        return "ram"
-    return None
+        kind = "ram" if "w" in access else "flash" if ("x" in access or "r" in access) else None
+        skip = None
+        if "p" in access:
+            skip = "marked as a peripheral"
+        elif kind == "ram" and "r" not in access:
+            skip = "not readable"
+        elif kind == "flash" and "x" not in access:
+            skip = "not executable"
+    else:
+        ident = attrs.get("id", "")
+        kind = "flash" if ident.startswith("IROM") else "ram" if ident.startswith("IRAM") else None
+        skip = None
+    if kind and attrs.get("alias"):
+        skip = f"an alias of {attrs['alias']}"
+    return kind, skip
 
 
 def _apply(element: ET.Element, state: dict) -> dict:
@@ -79,10 +141,11 @@ def _apply(element: ET.Element, state: dict) -> dict:
                 state["clock"] = max(clock, state["clock"] or 0)
         elif child.tag == "memory":
             key = child.get("name") or child.get("id")
-            size, kind = _int(child.get("size")), _memory_kind(child.attrib)
+            size, (kind, skip) = _int(child.get("size")), _memory_kind(child.attrib)
             if key and size and kind:
                 state["memories"][key] = {"size": size, "kind": kind, "start": _int(child.get("start")),
-                                          "access": child.get("access") or child.get("id") or ""}
+                                          "access": child.get("access") or child.get("id") or "",
+                                          "default": child.get("default") in ("1", "true"), "skip": skip}
     return state
 
 
@@ -178,15 +241,32 @@ def compare(target, entry: dict, devices: list[PackDevice]) -> list[Line]:
     for q in QUANTITIES:
         spec_v, pack_v = spec_values[q], device.value(q)
         where = f"{device.name} in {device.pack}"
+        regions = "" if q == "clock" else _regions_note(device, q)
         if pack_v is None:
-            out.append(Line(target.id, q, spec_v, None, "not in pack", where))
+            out.append(Line(target.id, q, spec_v, None, "not in pack", where + regions))
         elif pack_v == spec_v:
-            out.append(Line(target.id, q, spec_v, pack_v, "same", where))
+            out.append(Line(target.id, q, spec_v, pack_v, "same", where + regions))
         elif q in explained and explained[q].get("pack") == pack_v and explained[q].get("why"):
             out.append(Line(target.id, q, spec_v, pack_v, "explained", explained[q]["why"]))
         else:
-            out.append(Line(target.id, q, spec_v, pack_v, "DIFFERENT", f"{where}: re-read the datasheet"))
+            out.append(Line(target.id, q, spec_v, pack_v, "DIFFERENT", f"{where}: re-read the datasheet{regions}"))
     return out
+
+
+def _region(name: str, m: dict) -> str:
+    at = f" at {m['start']:#010x}" if m["start"] is not None else ""
+    return f"{name} {m['size']:,} B{at}"
+
+
+def _regions_note(device: PackDevice, kind: str) -> str:
+    """Which pack regions a total is made of, and which regions of that kind it leaves out."""
+    counted, left = device.counted(kind), device.left_out(kind)
+    if not counted and not left:
+        return ""
+    note = ". Counted: " + (", ".join(_region(n, m) for n, m in counted.items()) or "nothing")
+    if left:
+        note += ". Not counted: " + ", ".join(f"{_region(n, device.memories[n])} ({why})" for n, why in left.items())
+    return note
 
 
 def _fmt(quantity: str, value: int | None) -> str:
@@ -223,23 +303,29 @@ def render_compact(lines: list[Line]) -> str:
             else:
                 parts.append(f"{ln.quantity} {ln.status}: spec {_fmt(ln.quantity, ln.spec_value)}, "
                              f"pack {_fmt(ln.quantity, ln.pack_value)}")
-        where = next((ln.detail.split(":")[0] for ln in mine if ln.status in ("same", "not in pack", "DIFFERENT")), "")
+        where = next((ln.detail.split(":")[0].split(". ")[0] for ln in mine
+                      if ln.status in ("same", "not in pack", "DIFFERENT")), "")
         out.append(f"{spec} [{where}]: " + "; ".join(parts))
     return "\n".join(out)
 
 
 def render_regions(targets, mapping: dict, devices: list[PackDevice]) -> str:
-    """Every memory region each matched pack device lists, so that a difference in a total can be
-    traced to the region that causes it: an alias, a peripheral window, an external-flash window."""
+    """Every memory region each matched pack device lists, and whether the totals count it, so that
+    a difference can be traced to the region that causes it: an alias, a peripheral window, an
+    external-flash window. `default` is the pack's own mark for a region it gives to the linker."""
     out = []
     for t in targets:
         device = find_device(devices, mapping.get(t.id, {}).get("device") or "")
         if device is None:
             continue
         out.append(f"{t.id} = {device.name}:")
+        left = {kind: device.left_out(kind) for kind in ("flash", "ram")}
         for name, m in sorted(device.memories.items(), key=lambda kv: (kv[1]["start"] or 0)):
             start = f"{m['start']:#010x}" if m["start"] is not None else "?"
-            out.append(f"  {m['kind']:<5} {start} {m['size']:>11,} B  {m['access']:<4} {name}")
+            why = left[m["kind"]].get(name)
+            verdict = f"not counted: {why}" if why else "counted"
+            mark = "default" if m["default"] else "-"
+            out.append(f"  {m['kind']:<5} {start} {m['size']:>11,} B  {m['access']:<5} {mark:<7} {name}: {verdict}")
     return "\n".join(out)
 
 

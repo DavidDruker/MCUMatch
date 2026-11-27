@@ -43,12 +43,14 @@ version = "14.0.0"
 url = "https://mcuxpresso.nxp.com/cmsis_pack/repo/"
 specs = ["mk64fn1m0vll12"]
 
+# NXP.MKL26Z4_DFP 10.0.3 lists the 128 kB and 256 kB KL26 parts only (seen in CI on 2026-11-27),
+# so the 64 kB part is looked for in Keil's older pack for the whole KL family. The index marks
+# that pack as deprecated since 2023-09-03.
 [[pack]]
-vendor = "NXP"
-name = "MKL26Z4_DFP"
-sha256 = "072e34f19a74c35f34a13d719eae106b984d69e1cce970714a606643b109ca1e"
-version = "10.0.3"
-url = "https://mcuxpresso.nxp.com/cmsis_pack/repo/"
+vendor = "Keil"
+name = "Kinetis_KLxx_DFP"
+version = "1.15.1"
+url = "https://www.keil.com/pack/"
 specs = ["mkl26z64vft4"]
 
 [[pack]]

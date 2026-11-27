@@ -106,6 +106,23 @@ class TestCiAnnotations(unittest.TestCase):
         self.assertTrue(out.startswith("::notice title=A table::target  core  verdict%0A"))
         self.assertIn("82.3 %25 of it", out)  # a percent sign is escaped
 
+    def test_long_output_becomes_several_notices_cut_between_lines(self):
+        import tempfile
+
+        rows = [f"row {n:03d} " + "x" * 90 for n in range(100)]  # about 10,000 characters
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "long.txt"
+            path.write_text("\n".join(rows) + "\n", encoding="utf-8")
+            out = self.run_script("--notices", "A long table", str(path)).strip().splitlines()
+            short = self.run_script("--notices", "Short", str(REPO / "LICENSE")).strip().splitlines()
+        self.assertEqual(len(out), 3)
+        self.assertTrue(out[0].startswith("::notice title=A long table (1 of 3)::row 000 "))
+        self.assertTrue(out[2].startswith("::notice title=A long table (3 of 3)::"))
+        kept = [row for line in out for row in line.split("::", 2)[2].split("%0A")]
+        self.assertEqual(kept, rows)  # nothing lost, nothing cut inside a line
+        self.assertEqual(len(short), 1)
+        self.assertTrue(short[0].startswith("::notice title=Short (1 of 1)::"))
+
 
 class TestCommunityFiles(unittest.TestCase):
     def test_the_files_a_visitor_looks_for_exist(self):

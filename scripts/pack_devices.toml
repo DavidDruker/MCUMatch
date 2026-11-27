@@ -1,8 +1,7 @@
 # Which CMSIS-Pack device each target spec is compared with (scripts/check_against_packs.py).
 #
 #   device     a glob matched, without regard to case, against the Dname and Dvariant names in
-#              the packs. The patterns below are first guesses written before any pack was
-#              downloaded; correct them when the script reports "no pack device matches".
+#              the packs. Correct a pattern when the script reports "no pack device matches".
 #   explained  one entry per quantity (flash, ram, clock) whose pack value differs from the spec
 #              for a reason found by re-reading the datasheet. `pack` pins the value the pack gave,
 #              so a newer pack with another value is reported again. `why` goes into the report.
@@ -28,8 +27,9 @@ device = "ATSAMD51J19A"
 [mk64fn1m0vll12]
 device = "MK64FN1M0VLL12"
 
+# Keil's pack names the part with or without its package letters, so the pattern takes both.
 [mkl26z64vft4]
-device = "MKL26Z64VFT4"
+device = "MKL26Z64*4"
 
 [mspm0g3507]
 device = "MSPM0G3507"

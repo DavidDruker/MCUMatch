@@ -54,6 +54,64 @@ PDSC_OLD = """<?xml version="1.0"?>
   </subFamily>
 </family></devices></package>
 """
+# The shapes that real packs were seen to use: a second flash region that is not for the linker, a
+# read-only configuration row, a write-only row, RAM named again at another address, a region
+# inside another, a peripheral window marked readable and writable.
+PDSC_SHAPES = """<?xml version="1.0"?>
+<package><devices><family Dfamily="Shapes">
+  <device Dname="SHAPES1">
+    <processor Dcore="Cortex-M4" Dclock="100000000"/>
+    <memory name="FLASH" access="rx" start="0x00000000" size="0x10000" default="1" startup="1"/>
+    <memory name="FLASH_AGAIN" access="rx" start="0x00400000" size="0x10000" default="0"/>
+    <memory name="CONFIG" access="r" start="0x41c00000" size="0x200"/>
+    <memory name="USER_ROW" access="w" start="0x00804000" size="0x100"/>
+    <memory name="RAM" access="rwx" start="0x20000000" size="0x8000" default="1"/>
+    <memory name="RAM_RETAINED" access="rwx" start="0x20000000" size="0x2000"/>
+    <memory name="RAM_MIRROR" access="rwx" start="0x20100000" size="0x8000" alias="RAM" default="1"/>
+    <memory name="BACKUP" access="rwx" start="0x47000000" size="0x2000"/>
+    <memory name="PERIPHERALS" access="rwp" start="0x40000000" size="0x20000000" default="1"/>
+  </device>
+  <device Dname="SHAPES2">
+    <memory name="RAM_A" access="rw" start="0x20000000" size="0x3000"/>
+    <memory name="RAM_B" access="rw" start="0x20002000" size="0x2000"/>
+    <memory name="RAM_C" access="rw" start="0x30000000" size="0x1000"/>
+    <memory name="HPB" access="rwp" start="0x40000000" size="0x10000"/>
+  </device>
+</family></devices></package>
+"""
+
+
+class TestWhatATotalCounts(unittest.TestCase):
+    def setUp(self):
+        self.one, self.two = packs.parse_pdsc(PDSC_SHAPES, "shapes.pdsc")
+
+    def test_only_the_regions_given_to_the_linker_by_default(self):
+        self.assertEqual(self.one.total("flash"), 0x10000)
+        self.assertEqual(self.one.total("ram"), 0x8000)
+        self.assertEqual(list(self.one.counted("ram")), ["RAM"])
+
+    def test_every_region_left_out_has_a_reason(self):
+        self.assertEqual(self.one.left_out("flash"), {"FLASH_AGAIN": packs.NOT_DEFAULT, "CONFIG": "not executable"})
+        self.assertEqual(self.one.left_out("ram"), {
+            "USER_ROW": "not readable",
+            "RAM_MIRROR": "an alias of RAM",
+            "BACKUP": packs.NOT_DEFAULT,
+            "PERIPHERALS": "marked as a peripheral",
+        })  # RAM_RETAINED lies inside RAM, so it is counted and not listed
+
+    def test_without_default_marks_every_region_counts_and_each_address_once(self):
+        self.assertEqual(self.two.total("ram"), 0x4000 + 0x1000)  # RAM_A and RAM_B overlap by 0x1000
+        self.assertEqual(self.two.left_out("ram"), {"HPB": "marked as a peripheral"})
+        self.assertIsNone(self.two.total("flash"))
+
+    def test_the_comparison_says_what_was_counted(self):
+        target = load_target(DATA / "tiny-m0plus.toml")
+        got = {ln.quantity: ln for ln in packs.compare(target, {"device": "SHAPES1"}, [self.one, self.two])}
+        self.assertEqual(got["ram"].status, "DIFFERENT")
+        self.assertIn("re-read the datasheet. Counted: RAM 32,768 B at 0x20000000. Not counted: ", got["ram"].detail)
+        self.assertIn("BACKUP 8,192 B at 0x47000000 (not given to the linker by default)", got["ram"].detail)
+        self.assertIn("PERIPHERALS 536,870,912 B at 0x40000000 (marked as a peripheral)", got["ram"].detail)
+        self.assertNotIn("Counted", got["clock"].detail)  # nothing about regions for a clock
 
 
 class TestParsing(unittest.TestCase):
@@ -133,10 +191,15 @@ class TestComparison(unittest.TestCase):
         text = packs.render_regions([TINY], {"tiny-m0plus": {"device": "TINYM0-BIG"}}, self.devices)
         self.assertEqual(text.splitlines(), [
             "tiny-m0plus = TINYM0-BIG:",
-            "  flash 0x00000000       8,192 B  rx   Flash",
-            "  ram   0x20000000       6,144 B  rwx  SRAM",
-            "  ram   0x20001800       2,048 B  rw   SRAM2",
+            "  flash 0x00000000       8,192 B  rx    -       Flash: counted",
+            "  ram   0x20000000       6,144 B  rwx   -       SRAM: counted",
+            "  ram   0x20001800       2,048 B  rw    -       SRAM2: counted",
         ])
+        text = packs.render_regions([TINY], {"tiny-m0plus": {"device": "SHAPES1"}},
+                                    packs.parse_pdsc(PDSC_SHAPES, "shapes.pdsc"))
+        self.assertIn("  flash 0x00000000      65,536 B  rx    default FLASH: counted", text)
+        self.assertIn("  ram   0x20000000       8,192 B  rwx   -       RAM_RETAINED: counted", text)
+        self.assertIn("  ram   0x20100000      32,768 B  rwx   default RAM_MIRROR: not counted: an alias of RAM", text)
 
     def test_compact_output_is_one_line_per_spec(self):
         text = packs.render_compact(packs.compare(TINY, {"device": "TINYM0"}, self.devices))
