@@ -5,7 +5,7 @@
 # (https://www.keil.com/pack/index.pidx), read on 2026-11-27. A pack's file is
 # <url><vendor>.<name>.<version>.pack.
 #
-# `sha256` pins the file: the hashes are the ones the first CI download printed, on 2026-11-27.
+# `sha256` pins the file: each hash is the one the first CI download of that file printed, on 2026-11-27.
 # They show that later downloads are the same file, not that the file is what the vendor meant to
 # publish. An entry without one is downloaded and its hash is printed, so that it can be pinned.
 #
@@ -49,6 +49,7 @@ specs = ["mk64fn1m0vll12"]
 [[pack]]
 vendor = "Keil"
 name = "Kinetis_KLxx_DFP"
+sha256 = "ef1c5d86c52c22806cfb56c9b97a647ff125ec8fed8ccd1a276f114d43d571ef"
 version = "1.15.1"
 url = "https://www.keil.com/pack/"
 specs = ["mkl26z64vft4"]

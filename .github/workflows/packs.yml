@@ -54,6 +54,7 @@ jobs:
           cat compact.txt summary.txt
           python .github/scripts/annotate_failures.py --notice "Specs against packs" compact.txt
           python scripts/check_against_packs.py --markdown > table.md 2> /dev/null
+          python .github/scripts/annotate_failures.py --notices "Pack table" table.md
           exit 0
 
       - name: List every memory region the packs give

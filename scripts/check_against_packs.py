@@ -6,6 +6,10 @@ A pack is a cross-check, never a source. A difference means "re-read the datashe
 the pack": packs describe a default configuration, while a spec takes the most generous figure the
 datasheet allows (conditional RAM regions, special clock modes).
 
+So a pack that gives less than the spec is the usual case. A pack that gives MORE is the one to
+look at first: a spec that understates a capacity or a clock could rule a part out wrongly. Every
+difference says which way it goes.
+
 `python scripts/fetch_packs.py` downloads the pinned packs listed in scripts/packs.toml into
 `packs/`, which Git ignores. You can also put packs there by hand (https://www.keil.arm.com/packs/ or
 the vendor's site). A `.pack` file is a zip archive: either unzip it or leave it as it is; this
@@ -224,6 +228,11 @@ class Line:
     def needs_attention(self) -> bool:
         return self.status in ("DIFFERENT", "no device")
 
+    @property
+    def pack_gives_more(self) -> bool:
+        """The direction that could make a rule-out wrong: the spec may understate the part."""
+        return self.status == "DIFFERENT" and self.pack_value > self.spec_value
+
 
 def compare(target, entry: dict, devices: list[PackDevice]) -> list[Line]:
     spec_values = {"flash": target.flash_capacity, "ram": target.ram_capacity, "clock": target.max_clock_hz.value}
@@ -249,7 +258,9 @@ def compare(target, entry: dict, devices: list[PackDevice]) -> list[Line]:
         elif q in explained and explained[q].get("pack") == pack_v and explained[q].get("why"):
             out.append(Line(target.id, q, spec_v, pack_v, "explained", explained[q]["why"]))
         else:
-            out.append(Line(target.id, q, spec_v, pack_v, "DIFFERENT", f"{where}: re-read the datasheet{regions}"))
+            side = "more" if pack_v > spec_v else "less"
+            out.append(Line(target.id, q, spec_v, pack_v, "DIFFERENT",
+                            f"{where}: the pack gives {side} than the spec; re-read the datasheet{regions}"))
     return out
 
 
@@ -301,8 +312,9 @@ def render_compact(lines: list[Line]) -> str:
             elif ln.status == "not in pack":
                 parts.append(f"{ln.quantity} not in pack (spec {_fmt(ln.quantity, ln.spec_value)})")
             else:
+                side = "" if ln.status != "DIFFERENT" else " (more)" if ln.pack_gives_more else " (less)"
                 parts.append(f"{ln.quantity} {ln.status}: spec {_fmt(ln.quantity, ln.spec_value)}, "
-                             f"pack {_fmt(ln.quantity, ln.pack_value)}")
+                             f"pack {_fmt(ln.quantity, ln.pack_value)}{side}")
         where = next((ln.detail.split(":")[0].split(". ")[0] for ln in mine
                       if ln.status in ("same", "not in pack", "DIFFERENT")), "")
         out.append(f"{spec} [{where}]: " + "; ".join(parts))
@@ -362,8 +374,9 @@ def main(argv: list[str] | None = None) -> int:
     lines = [ln for t in targets for ln in compare(t, mapping.get(t.id, {}), devices)]
     print(render_compact(lines) if args.compact else render(lines, args.markdown))
     bad = [ln for ln in lines if ln.needs_attention]
+    more = sum(ln.pack_gives_more for ln in lines)
     print(f"\n{len(devices)} pack devices read. {len(lines) - len(bad)} of {len(lines)} comparisons need no action; "
-          f"{len(bad)} need attention.", file=sys.stderr)
+          f"{len(bad)} need attention, {more} of them because the pack gives more than the spec.", file=sys.stderr)
     return 1 if bad else 0
 
 

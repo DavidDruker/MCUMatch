@@ -108,7 +108,8 @@ class TestWhatATotalCounts(unittest.TestCase):
         target = load_target(DATA / "tiny-m0plus.toml")
         got = {ln.quantity: ln for ln in packs.compare(target, {"device": "SHAPES1"}, [self.one, self.two])}
         self.assertEqual(got["ram"].status, "DIFFERENT")
-        self.assertIn("re-read the datasheet. Counted: RAM 32,768 B at 0x20000000. Not counted: ", got["ram"].detail)
+        self.assertIn("the pack gives more than the spec; re-read the datasheet. "
+                      "Counted: RAM 32,768 B at 0x20000000. Not counted: ", got["ram"].detail)
         self.assertIn("BACKUP 8,192 B at 0x47000000 (not given to the linker by default)", got["ram"].detail)
         self.assertIn("PERIPHERALS 536,870,912 B at 0x40000000 (marked as a peripheral)", got["ram"].detail)
         self.assertNotIn("Counted", got["clock"].detail)  # nothing about regions for a clock
@@ -160,7 +161,17 @@ class TestComparison(unittest.TestCase):
         self.assertEqual(got["ram"].status, "DIFFERENT")  # the spec counts a conditional 2 kB region as well
         self.assertEqual((got["ram"].spec_value, got["ram"].pack_value), (8192, 6144))
         self.assertTrue(got["ram"].needs_attention)
-        self.assertIn("re-read the datasheet", got["ram"].detail)
+        self.assertIn("the pack gives less than the spec; re-read the datasheet", got["ram"].detail)
+        self.assertFalse(got["ram"].pack_gives_more)
+
+    def test_a_pack_that_gives_more_is_marked(self):
+        # The direction that matters: a spec that understates a part could rule it out wrongly.
+        got = {ln.quantity: ln for ln in packs.compare(TINY, {"device": "TINYM0-BIG"}, self.devices)}
+        self.assertEqual((got["flash"].spec_value, got["flash"].pack_value), (4096, 8192))
+        self.assertTrue(got["flash"].pack_gives_more)
+        self.assertIn("the pack gives more than the spec", got["flash"].detail)
+        self.assertIn("flash DIFFERENT: spec 4,096 B, pack 8,192 B (more)", packs.render_compact(list(got.values())))
+        self.assertFalse(got["ram"].pack_gives_more)  # the same value is not a difference
 
     def test_an_explained_difference_pins_the_pack_value(self):
         why = "the spec counts a region usable only in some configurations"
@@ -204,7 +215,7 @@ class TestComparison(unittest.TestCase):
     def test_compact_output_is_one_line_per_spec(self):
         text = packs.render_compact(packs.compare(TINY, {"device": "TINYM0"}, self.devices))
         self.assertEqual(text, "tiny-m0plus [TINYM0 in tiny.pdsc]: flash same (4,096 B); "
-                               "ram DIFFERENT: spec 8,192 B, pack 6,144 B; clock same (48 MHz)")
+                               "ram DIFFERENT: spec 8,192 B, pack 6,144 B (less); clock same (48 MHz)")
         text = packs.render_compact(packs.compare(TINY, {"device": "NOPE"}, self.devices))
         self.assertTrue(text.startswith("tiny-m0plus: NO DEVICE. no pack device matches 'NOPE'"))
 
@@ -239,7 +250,7 @@ class TestScript(unittest.TestCase):
             code, out, err = self.run_script(*args)
             self.assertEqual(code, 1)  # the RAM difference is not explained yet
             self.assertIn("DIFFERENT", out)
-            self.assertIn("1 need attention", err)
+            self.assertIn("1 need attention, 0 of them because the pack gives more than the spec", err)
             mapping.write_text('[tiny-m0plus]\ndevice = "TINYM0"\n[tiny-m0plus.explained.ram]\npack = 6144\n'
                                'why = "conditional region"\n', encoding="utf-8")
             code, out, _ = self.run_script(*args, "--markdown")
