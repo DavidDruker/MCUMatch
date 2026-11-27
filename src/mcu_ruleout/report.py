@@ -17,7 +17,9 @@ from .targets import Target
 from .timing import format_duration
 
 NOT_A_FIT = "This is not a 'fits' verdict. Nothing here shows that the code fits or runs."
-NOT_A_PASS = "This is not a 'meets the deadline' verdict. Real hardware can only be slower than this bound."
+NOT_A_PASS = ("This is not a 'meets the deadline' verdict. The bound is for the binary built here: real hardware "
+              "running that binary can only be slower. A faster library, another compiler or another input "
+              "can be faster.")
 
 
 def versions(tc_version: str | None = None, unicorn_model: str | None = None) -> dict[str, str]:

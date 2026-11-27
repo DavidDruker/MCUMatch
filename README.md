@@ -9,8 +9,9 @@ strikes the impossible parts off a list before you buy a board.
 - **It never says code fits or meets a deadline.** The only verdicts are `RULED OUT` and
   `NOT RULED OUT: measure on hardware`.
 - **It does not rank the parts that are left.** A shortlist only gets shorter.
-- **It does not predict execution time.** It computes a best-case lower bound. Real hardware
-  can only be slower.
+- **It does not predict execution time.** It computes a best-case lower bound for the binary it
+  built. Real hardware running that binary can only be slower. A faster library, another compiler
+  or another input can be faster.
 - **Its timing bound has not been validated against hardware.** A check against published
   measurements was pre-registered and run, but no published measurement met the completeness rule
   (N = 0). See [docs/VALIDATION.md](docs/VALIDATION.md).

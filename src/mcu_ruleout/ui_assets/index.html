@@ -312,12 +312,15 @@ function memoryResult(d) {
        (cg.complete ? "." : ` plus unknown (${cg.unknowns.join("; ")}).`)) : null]);
 }
 
+const SAME_BINARY = "The bound is for the binary built here: real hardware running that binary can only be slower. " +
+  "A faster library, another compiler or another input can be faster.";
+
 function timingResult(d) {
   const has = d.deadline_s !== null && d.deadline_s !== undefined;
   const why = d.ruled_out
     ? `Even in the best case it takes ${dur(d.time_lower_bound_s)}, longer than the ${dur(d.deadline_s)} deadline.`
-    : has ? "The best case is within the deadline. Real hardware can only be slower, so this proves nothing either way."
-          : "No deadline was given, so nothing can be ruled out. Real hardware can only be slower than this.";
+    : has ? "The best case is within the deadline, which proves nothing either way. " + SAME_BINARY
+          : "No deadline was given, so nothing can be ruled out. " + SAME_BINARY;
   const classes = Object.entries(d.by_class).sort((a, b) => b[1].cycles - a[1].cycles)
     .map(([k, v]) => [k, num(v.instructions), num(v.cycles)]);
   const zero = Object.entries(d.undocumented_counted_as_zero);
