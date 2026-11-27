@@ -26,9 +26,12 @@ from .cycles import UNSUPPORTED, CycleModel, Decoded
 from .cycles import condition_passes as model_condition
 
 PAGE = 0x1000
-STACK_TOP = 0x4000_0000  # top of the kernel.ld RAM region
 STACK_SIZE = 0x4_0000
-SENTINEL = 0x0FFF_F000  # return address for the entry call; nothing is linked there
+# The emulator's own stack and the return address of the entry call go where the image has nothing.
+# The first of each is used unless a firmware image already occupies it.
+STACK_TOPS = (0x4000_0000, 0x6000_0000, 0x9000_0000, 0xC000_0000, 0xE000_0000)
+SENTINELS = (0x0FFF_F000, 0x7FFF_F000, 0xBFFF_F000, 0xDFFF_F000)
+STACK_TOP, SENTINEL = STACK_TOPS[0], SENTINELS[0]  # the usual choices, for kernel-only builds
 UNICORN_MODELS = {"cortex-m0plus": "UC_CPU_ARM_CORTEX_M0", "cortex-m4f": "UC_CPU_ARM_CORTEX_M4"}
 DEFAULT_MAX_INSNS = 50_000_000
 
@@ -110,6 +113,16 @@ def _owner(funcs: list[tuple[int, int, str]], addr: int) -> str:
     return f"?{addr:#x}"
 
 
+def _free_place(pages: dict[int, int], candidates: tuple[int, ...], below: int) -> int:
+    """The first candidate address whose page, and `below` bytes under it, hold nothing of the image."""
+    for addr in candidates:
+        wanted = range((addr - below) // PAGE, addr // PAGE) if below else (addr // PAGE,)
+        if not any(page in pages for page in wanted):
+            return addr
+    raise EmulationError(f"the image leaves no room for the emulator's stack or return address.{FIX}trace a "
+                         "smaller image: link only the benchmark and the kernel.")
+
+
 def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None = None,
               args: tuple[int, ...] = (), max_insns: int = DEFAULT_MAX_INSNS) -> Trace:
     try:
@@ -159,9 +172,11 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
     for addr, size, _, prot in sections:
         for page in range(addr // PAGE, (addr + size - 1) // PAGE + 1):
             pages[page] = pages.get(page, 0) | prot
-    for page in range((STACK_TOP - STACK_SIZE) // PAGE, STACK_TOP // PAGE):
-        pages[page] = pages.get(page, 0) | UC_PROT_READ | UC_PROT_WRITE
-    pages[SENTINEL // PAGE] = pages.get(SENTINEL // PAGE, 0) | UC_PROT_READ | UC_PROT_EXEC
+    stack_top = _free_place(pages, STACK_TOPS, below=STACK_SIZE)
+    sentinel = _free_place(pages, SENTINELS, below=0)
+    for page in range((stack_top - STACK_SIZE) // PAGE, stack_top // PAGE):
+        pages[page] = UC_PROT_READ | UC_PROT_WRITE
+    pages[sentinel // PAGE] = UC_PROT_READ | UC_PROT_EXEC
     run_start = prev = None
     for page in sorted(pages) + [None]:  # map runs of neighbouring pages that share their permissions
         if run_start is not None and (page is None or page != prev + 1 or pages[page] != pages[run_start]):
@@ -238,15 +253,15 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
     mu.hook_add(UC_HOOK_CODE, hook)
     mu.hook_add(UC_HOOK_MEM_UNMAPPED | UC_HOOK_MEM_PROT, fault_hook)
     stack_args = args[4:]
-    sp = (STACK_TOP - 4 * len(stack_args)) & ~7
+    sp = (stack_top - 4 * len(stack_args)) & ~7
     for i, v in enumerate(stack_args):
         mu.mem_write(sp + 4 * i, struct.pack("<I", v & 0xFFFF_FFFF))
     for reg, v in zip((A.UC_ARM_REG_R0, A.UC_ARM_REG_R1, A.UC_ARM_REG_R2, A.UC_ARM_REG_R3), args):
         mu.reg_write(reg, v & 0xFFFF_FFFF)
     mu.reg_write(A.UC_ARM_REG_SP, sp)
-    mu.reg_write(A.UC_ARM_REG_LR, SENTINEL | 1)
+    mu.reg_write(A.UC_ARM_REG_LR, sentinel | 1)
     try:
-        mu.emu_start(addr_of[entry] | 1, SENTINEL)
+        mu.emu_start(addr_of[entry] | 1, sentinel)
     except UcError as e:
         pc = mu.reg_read(A.UC_ARM_REG_PC)
         last = state["last"] if state["last"] is not None else pc
@@ -266,7 +281,7 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
         # A tail call (`return kernel(...)` compiled to a plain branch) leaves the entry's own return
         # address in LR, so the measured function returns straight to the sentinel and the run ends
         # there without another instruction for the hook to see. That is a normal return.
-        tail_called = state["ret"] == SENTINEL and mu.reg_read(A.UC_ARM_REG_SP) == state["sp"]
+        tail_called = state["ret"] == sentinel and mu.reg_read(A.UC_ARM_REG_SP) == state["sp"]
         if not tail_called:
             raise EmulationError(f"{measure} was entered but never returned before {entry} finished")
     if not trace.hits:
