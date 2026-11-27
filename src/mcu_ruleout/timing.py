@@ -232,19 +232,32 @@ class TimingResult:
         return {k: v for k, v in sorted(by.items(), key=lambda kv: -kv[1]) if k != USER and v}
 
     @property
+    def skipped_builds(self) -> list[str]:
+        """Labels of the builds that could not be traced. The bound is the minimum over the others only."""
+        return [b.label for b in self.builds if not b.ok]
+
+    @property
     def cautions(self) -> list[str]:
-        if self.holds_without_library is not False:
-            return []
-        lib = self.library_cycles
-        share = sum(lib.values()) / self.cycles_lb if self.cycles_lb else 0.0
-        limit = ("the deadline" if self.load_limit == FULL
-                 else f"your {format_duration_limit(self.load_limit, format_duration(self.allowed_s))}")
-        return [
-            f"This rule-out depends on library code. {share:.0%} of the bound's cycles are in the "
-            f"toolchain's runtime library ({', '.join(lib)}). Counting only your own code, the best case is "
-            f"{format_duration(self.user_time_lb_s)}, which does not exceed {limit}. Faster routines "
-            "(in the part's ROM, or hand-written) would be a different binary that this verdict does not cover."
-            + self.target.library_note_text]
+        out = []
+        if self.holds_without_library is False:
+            lib = self.library_cycles
+            share = sum(lib.values()) / self.cycles_lb if self.cycles_lb else 0.0
+            limit = ("the deadline" if self.load_limit == FULL
+                     else f"your {format_duration_limit(self.load_limit, format_duration(self.allowed_s))}")
+            out.append(
+                f"This rule-out depends on library code. {share:.0%} of the bound's cycles are in the "
+                f"toolchain's runtime library ({', '.join(lib)}). Counting only your own code, the best case is "
+                f"{format_duration(self.user_time_lb_s)}, which does not exceed {limit}. Faster routines "
+                "(in the part's ROM, or hand-written) would be a different binary that this verdict does not cover."
+                + self.target.library_note_text)
+        skipped = self.skipped_builds
+        if self.ruled_out and skipped:
+            out.append(
+                f"{len(skipped)} of {len(self.builds)} builds could not be traced ({'; '.join(skipped)}). The bound "
+                "comes from the other builds only. A build that was skipped may be faster, so this rule-out does "
+                "not cover it. The usual cause is a measured function that the compiler inlined or cloned: mark it "
+                "__attribute__((noinline, noclone)) so that every build can be traced.")
+        return out
 
 
 def decide(target: Target, builds: list[TimingBuild], deadline_s: float | None = None,

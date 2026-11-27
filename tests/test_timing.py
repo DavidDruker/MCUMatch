@@ -66,6 +66,28 @@ class TestEnvelopeDecision(unittest.TestCase):
         with self.assertRaisesRegex(RuntimeError, "never executed"):
             decide(TINY, [costed("user: -O2", 0, ok=False, error="k was never executed")])
 
+    def test_a_rule_out_from_only_some_of_the_builds_says_so(self):
+        # The user's own -O2 build could not be traced, so the bound is the -Os build's. The real
+        # build may be faster, and a rule-out that rests on the slower one has to say so.
+        builds = [costed("user: -O2", 0, ok=False, error="k was never executed"), costed("envelope: -Os", 9600)]
+        res = decide(TINY, builds, deadline_s=100e-6)
+        self.assertEqual(res.verdict, RULED_OUT)
+        self.assertEqual(res.skipped_builds, ["user: -O2"])
+        self.assertEqual(len(res.cautions), 1)
+        self.assertIn("1 of 2 builds could not be traced (user: -O2)", res.cautions[0])
+        self.assertIn("A build that was skipped may be faster, so this rule-out does not cover it", res.cautions[0])
+        self.assertIn("noinline, noclone", res.cautions[0])
+        # Not ruled out: no claim was made, so there is nothing to caution about.
+        relaxed = decide(TINY, builds, deadline_s=1.0)
+        self.assertEqual((relaxed.verdict, relaxed.cautions, relaxed.skipped_builds), (NOT_RULED_OUT, [], ["user: -O2"]))
+        # Every build traced: no caution.
+        self.assertEqual(decide(TINY, [costed("a", 9600), costed("b", 9700)], deadline_s=100e-6).cautions, [])
+        # With a library-dependent rule-out as well, the library caution stays first.
+        both = decide(TINY, [costed("a", 0, ok=False, error="x"), costed("b", 9600, own=2400)], deadline_s=100e-6)
+        self.assertEqual(len(both.cautions), 2)
+        self.assertIn("depends on library code", both.cautions[0])
+        self.assertIn("could not be traced", both.cautions[1])
+
     def test_rule_out_that_stands_without_the_library(self):
         res = decide(TINY, [costed("a", 9600, own=7200)], deadline_s=100e-6)  # 200 us in all, 150 us of it yours
         self.assertEqual(res.verdict, RULED_OUT)

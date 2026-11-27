@@ -382,7 +382,7 @@ function shortlistResult(d) {
     const t = r.target, m = r.memory, tm = r.timing;
     const pick = el("button", { class: "link", type: "button", title: `Run both checks on ${t.id} alone` }, t.id);
     pick.addEventListener("click", () => { $("target").value = t.id; showTarget(); run(); });
-    const status = r.ruled_out ? r.status.replace("RULED OUT (", "Ruled out: ").replace(/\)$/, "") + (r.depends_on_library ? " *" : "")
+    const status = r.ruled_out ? r.status.replace("RULED OUT (", "Ruled out: ").replace(/\)$/, "") + (r.depends_on_library ? " *" : "") + (r.builds_skipped ? " !" : "")
       : (m || tm) ? "Not ruled out" : "No verdict";
     return el("tr", { class: r.ruled_out ? "out" : "" },
       el("td", {}, pick, t.checked_by_person ? null : " ^"), el("td", { class: "status" }, status),
@@ -417,6 +417,9 @@ function shortlistResult(d) {
     d.rows.some((r) => r.depends_on_library) ? el("p", { class: "small" },
       "* Depends on library code: the rule-out would not stand if the toolchain's runtime library routines were " +
       "replaced by faster or smaller ones. Select the target name for the details.") : null,
+    d.rows.some((r) => r.builds_skipped) ? el("p", { class: "small" },
+      "! Some builds could not be traced, so this timing bound comes from the other builds only. A build that was " +
+      "skipped may be faster, and the rule-out does not cover it. Select the target name for the details.") : null,
     d.rows.some((r) => !r.target.checked_by_person) ? el("p", { class: "small" }, "^ " + UNCHECKED) : null,
     errors.length ? el("pre", { class: "err" }, errors.join("\n")) : null,
     shareButton(d),

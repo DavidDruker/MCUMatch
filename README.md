@@ -107,6 +107,9 @@ part rated below 98.8 MHz is ruled out for this kernel and deadline, whoever mak
   a Cortex-M0+, where the bound includes the compiler's software float routines and faster ones
   exist. The Raspberry Pi Pico's SDK, for example, uses routines in the chip's ROM by default.
   Treat such a rule-out as "ruled out with this library", not "ruled out".
+- **`!` and `CAUTION: ... builds could not be traced`** mean the bound comes from only some of the
+  builds. A build that was skipped may be faster, so the rule-out does not cover it. Marking the
+  measured function `noinline, noclone` usually fixes it ([docs/HARNESS.md](docs/HARNESS.md)).
 - **`^`** means the part's capacity and clock figures have not been checked by a person. Treat a
   verdict on a marked part as provisional until you have compared the cited pages yourself.
 - **A verdict is about the binaries the tool built and the input your code ran on.** Real

@@ -190,6 +190,7 @@ def _timing_core_json(res: T.TimingResult) -> dict:
     return {
         "verdict": res.verdict, "ruled_out": res.ruled_out,
         "holds_without_library": res.holds_without_library, "cautions": res.cautions,
+        "skipped_builds": res.skipped_builds,
         "cycles_lower_bound": res.cycles_lb, "lower_bound_from": res.label,
         "clock_hz": res.clock_hz, "time_lower_bound_s": res.time_lb_s, "deadline_s": res.deadline_s,
         "load_limit": float(res.load_limit), "allowed_time_s": res.allowed_s,
@@ -305,6 +306,7 @@ def print_timing(res: T.TimingResult, built: str, call_args: tuple[int, ...], ve
 def _row_json(r: Row) -> dict:
     d = {"target": _target_json(r.target), "status": r.status, "ruled_out": r.ruled_out,
          "ruled_out_by": r.ruled_out_by, "depends_on_library": r.depends_on_library,
+         "builds_skipped": r.builds_skipped,
          "cautions": r.cautions, "errors": r.errors}
     d["memory"] = _memory_core_json(r.memory) if r.memory else None
     d["timing"] = _timing_core_json(r.timing) if r.timing else None
@@ -352,7 +354,7 @@ def _row_cells(r: Row, deadline_s: float | None) -> list[str]:
     ram = _need_have(r.memory.ram_lb, t.ram_capacity) if r.memory else "-"
     time = format_duration(r.timing.time_lb_s) if r.timing else "-"
     load = format_at_least(r.timing.best_case_load) if r.timing and r.timing.best_case_load is not None else "-"
-    status = r.status + (" *" if r.depends_on_library else "")
+    status = r.status + (" *" if r.depends_on_library else "") + (" !" if r.builds_skipped else "")
     name = t.id if t.person_checked else f"{t.id} {UNCHECKED_MARK}"
     return [name, t.core.replace("cortex-", ""), flash, ram, f"{time} at {format_clock(t.max_clock_hz.value)}"
             if r.timing else time, load, status]
@@ -361,6 +363,11 @@ def _row_cells(r: Row, deadline_s: float | None) -> list[str]:
 _HEAD = ["target", "core", "flash, at least", "RAM, at least", "best-case time", "load, at least", "verdict"]
 _LIBRARY_NOTE = ("* depends on library code: the rule-out would not stand if the toolchain's runtime library "
                  "routines were replaced by faster or smaller ones. Run the single check for details.")
+
+
+_SKIPPED_NOTE = ("! some builds could not be traced, so this timing bound comes from the other builds only. A build "
+                 "that was skipped may be faster, and the rule-out does not cover it. Mark the measured function "
+                 "noinline and noclone; `mcu-ruleout timing` on one target shows which builds were skipped and why.")
 
 
 def _limit_lines(sl: Shortlist) -> list[str]:
@@ -379,6 +386,8 @@ def _footnotes(sl: Shortlist) -> list[str]:
     out = []
     if any(r.depends_on_library for r in sl.rows):
         out.append(_LIBRARY_NOTE)
+    if any(r.builds_skipped for r in sl.rows):
+        out.append(_SKIPPED_NOTE)
     if any(not r.target.person_checked for r in sl.rows):
         out.append(UNCHECKED_NOTE)
     return out
@@ -463,7 +472,7 @@ def shortlist_markdown(sl: Shortlist, inputs: dict, vers: dict) -> str:
     out += ["", "## Result", "", "| " + " | ".join(_HEAD) + " |", "|" + "---|" * len(_HEAD)]
     out += ["| " + " | ".join(_row_cells(r, sl.deadline_s)) + " |" for r in sl.rows]
     for note in _footnotes(sl):
-        out += ["", "\\" + note]  # the marks * and ^ are escaped so Markdown shows them as typed
+        out += ["", "\\" + note]  # the marks *, ! and ^ are escaped so Markdown shows them as typed
     out += [""] + [f"- {line}" for line in _summary_lines(sl)]
     errors = [f"- `{r.target.id}`: {e}" for r in sl.rows for e in r.errors]
     if errors:

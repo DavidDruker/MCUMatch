@@ -173,6 +173,7 @@ def shortlist_share(sl: Shortlist, vers: dict, inp: Inputs, names: bool = False)
         row = targets.describe(r.target)
         row.update(status=r.status, ruled_out=r.ruled_out, ruled_out_by=r.ruled_out_by,
                    depends_on_library=r.depends_on_library,
+                   builds_skipped=r.builds_skipped,
                    memory=_memory_part(r.memory) if r.memory else None,
                    timing=_timing_part(r.timing) if r.timing else None,
                    # The messages can quote the compiler and the code, so only which check failed is kept.

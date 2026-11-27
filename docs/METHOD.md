@@ -49,6 +49,8 @@ For a prebuilt ELF there is nothing to rebuild, so the verdict applies to that b
 4. **Fastest build wins.** The bound is the smallest cycle count over the builds that could be
    traced. A build is skipped, with its reason printed, when it does not compile or when the
    optimiser inlined or cloned the measured function so that it never runs under its own name.
+   A skipped build may have been the fastest. A rule-out that rests on the remaining builds
+   carries a caution naming the skipped ones, and the shortlist marks the row with `!`.
 5. **Bound.** Time = cycles / the part's maximum rated clock.
 
 ### What comes from the trace

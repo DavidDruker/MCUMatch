@@ -35,7 +35,8 @@ model is a true lower bound on real silicon. See [VALIDATION.md](VALIDATION.md).
   kernel is another program. Check that one instead.
 - **The envelope can lose builds.** If the optimiser inlines or clones the measured function, that
   build cannot be traced and is skipped, with the reason printed. The skipped build might have been
-  the fastest. Mark the measured function `noinline, noclone` (as the examples do) to keep it.
+  the fastest, so the bound may then be too high. A rule-out that rests on it carries a caution and
+  a `!` mark. Mark the measured function `noinline, noclone` (as the examples do) to keep it.
 - **"Your own code" assumes the same answers.** A replacement library that rounds differently
   could change which path your code takes.
 

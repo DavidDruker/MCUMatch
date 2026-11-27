@@ -260,8 +260,9 @@ Builds                             instructions        cycles (lower bound)
 ```
 
 Three builds are lost, and the bound becomes 2,157 cycles from the `-Os` build alone. With the
-attribute it is 1,384. Always read the builds table: a "not traced" line means the bound may be
-too high.
+attribute it is 1,384. A "not traced" line means the bound may be too high. When a rule-out rests
+on such a bound the report adds a caution that names the skipped builds, and the shortlist marks
+the row with `!`.
 
 ## Measuring a function inside your real firmware
 

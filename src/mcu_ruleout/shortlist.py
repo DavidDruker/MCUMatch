@@ -82,6 +82,12 @@ class Row:
         return [c for check in (self.memory, self.timing) if check for c in check.cautions]
 
     @property
+    def builds_skipped(self) -> bool:
+        """Ruled out on timing, with a bound that comes from only some of the builds: one or more
+        could not be traced, and a skipped build may be faster."""
+        return bool(self.timing and self.timing.ruled_out and self.timing.skipped_builds)
+
+    @property
     def status(self) -> str:
         if self.ruled_out:
             reasons = [c.short_reason for c in (self.memory, self.timing) if c and c.ruled_out]

@@ -48,6 +48,10 @@ Everything since 0.1.0. Not released; `pyproject.toml` says `0.2.0.dev0`.
 - **Firmware images.** `timing --elf` traces a function inside a full firmware image linked at a
   vendor address, without running its startup code.
 - **Error messages that say what to do.** Each likely failure prints one line ending in `Fix:`.
+- **A caution when a rule-out rests on only some of the builds.** If a build could not be traced
+  (usually because the measured function was inlined), the bound comes from the other builds and
+  may be too high. Such a timing rule-out now says so, the shortlist marks it with `!`, and the
+  JSON has `skipped_builds` and `builds_skipped`.
 - **The timing report prints the harness's return value** ("Entry returned"), and the JSON has
   `entry_return_value`, so a `-D SELFTEST` build can be checked.
 - **Measurement kit** (`kit/`, `docs/MEASURE.md`): firmware and host tools for comparing a

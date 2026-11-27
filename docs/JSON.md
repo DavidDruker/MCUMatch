@@ -90,7 +90,8 @@ Each entry of `measurements`:
 | `ruled_out` | boolean | |
 | `over_deadline` | boolean | The best case misses the whole deadline, whatever load limit was set |
 | `holds_without_library` | boolean or null | For a rule-out: would it stand if library routines took no time? |
-| `cautions` | list of strings | Present when a rule-out depends on library code |
+| `cautions` | list of strings | Present when a rule-out depends on library code, or when some builds could not be traced |
+| `skipped_builds` | list of strings | Labels of the builds that could not be traced. The bound does not cover them: a skipped build may be faster |
 | `cycles_lower_bound` | integer | The minimum over the builds that could be traced |
 | `lower_bound_from` | string | The label of that build |
 | `your_code_cycles_lower_bound` | integer or null | The same, counting only cycles in your own code |
@@ -139,6 +140,7 @@ Each entry of `rows`:
 | `ruled_out` | boolean | |
 | `ruled_out_by` | list of strings | `memory`, `timing`, or both |
 | `depends_on_library` | boolean | Ruled out, but no check that rules it out would stand with library code counted as nothing |
+| `builds_skipped` | boolean | Ruled out on timing with a bound from only some of the builds, because one or more could not be traced |
 | `cautions` | list of strings | |
 | `errors` | list of strings | Why a check gave no verdict. A target with no verdict is not ruled out |
 | `memory` | object or null | The verdict fields of the memory check: everything in the `memory` table above down to `lower_bounds` |

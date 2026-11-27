@@ -44,6 +44,28 @@ class TestGrouping(unittest.TestCase):
         self.assertEqual((row.status, row.ruled_out, row.evaluated, row.depends_on_library),
                          ("no verdict", False, False, False))
 
+    def test_a_rule_out_that_rests_on_only_some_builds_is_marked_and_footnoted(self):
+        from mcu_ruleout import timing as T
+        from mcu_ruleout.emu import Trace
+
+        def build(label, cycles=None):
+            if cycles is None:
+                return T.TimingBuild(label, False, error="kernel was never executed")
+            return T.TimingBuild(label, True, cost=T.TraceCost(Trace("cortex-m0plus", "e", "e"), "table", cycles, {}))
+
+        tiny = load_target(TINY)  # 48 MHz
+        partial = S.Row(tiny, timing=T.decide(tiny, [build("user: -O2"), build("envelope: -Os", 9600)], 100e-6))
+        whole = S.Row(tiny, timing=T.decide(tiny, [build("user: -O2", 9600)], 100e-6))
+        relaxed = S.Row(tiny, timing=T.decide(tiny, [build("user: -O2"), build("envelope: -Os", 9600)], 1.0))
+        self.assertEqual((partial.builds_skipped, whole.builds_skipped, relaxed.builds_skipped), (True, False, False))
+        self.assertTrue(report._row_cells(partial, 100e-6)[-1].endswith("RULED OUT (timing) !"))
+        self.assertEqual(report._row_cells(whole, 100e-6)[-1], "RULED OUT (timing)")
+        notes = report._footnotes(S.Shortlist([partial, whole], []))
+        self.assertTrue(any(n.startswith("! some builds could not be traced") for n in notes))
+        self.assertFalse(any(n.startswith("!") for n in report._footnotes(S.Shortlist([whole, relaxed], []))))
+        self.assertTrue(report._row_json(partial)["builds_skipped"])
+        self.assertEqual(report._row_json(partial)["timing"]["skipped_builds"], ["user: -O2"])
+
     def test_a_spec_not_checked_by_a_person_is_marked_and_footnoted(self):
         unchecked = load_target(TINY)  # no [checked] record
         with tempfile.TemporaryDirectory() as tmp:
