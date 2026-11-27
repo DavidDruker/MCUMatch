@@ -3,3 +3,5 @@ build/
 __pycache__/
 *.pyc
 *.egg-info/
+# Vendor CMSIS packs, downloaded by hand for scripts/check_against_packs.py
+packs/

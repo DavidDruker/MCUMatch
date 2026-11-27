@@ -1,0 +1,50 @@
+# Which CMSIS-Pack device each target spec is compared with (scripts/check_against_packs.py).
+#
+#   device     a glob matched, without regard to case, against the Dname and Dvariant names in
+#              the packs. The patterns below are first guesses written before any pack was
+#              downloaded; correct them when the script reports "no pack device matches".
+#   explained  one entry per quantity (flash, ram, clock) whose pack value differs from the spec
+#              for a reason found by re-reading the datasheet. `pack` pins the value the pack gave,
+#              so a newer pack with another value is reported again. `why` goes into the report.
+#
+# Example of an explained difference:
+#
+#   [rp2040-pico.explained.ram]
+#   pack = 270336
+#   why = "The pack lists main SRAM only. The spec also counts the XIP cache and USB DPRAM, which the datasheet says can serve as RAM (s2.6.2.1 p.123)."
+#
+# A pack is a cross-check, never a source. Do not change a spec to match a pack; re-read the
+# datasheet page the spec cites, and record what you found in docs/CATALOGUE_CHECK.md.
+
+[apollo3-blue]
+device = "AMA3B1KK*"
+
+[atsamd21g18a]
+device = "ATSAMD21G18A"
+
+[atsamd51j19a]
+device = "ATSAMD51J19A"
+
+[mk64fn1m0vll12]
+device = "MK64FN1M0VLL12"
+
+[mkl26z64vft4]
+device = "MKL26Z64VFT4"
+
+[mspm0g3507]
+device = "MSPM0G3507"
+
+[nrf52832]
+device = "nRF52832_xxAA"
+
+[nrf52833]
+device = "nRF52833_xxAA"
+
+[nrf52840]
+device = "nRF52840_xxAA"
+
+[rp2040-pico]
+device = "RP2040"
+
+[tm4c123gh6pm]
+device = "TM4C123GH6PM"
