@@ -111,6 +111,7 @@ def api_targets() -> list[dict]:
             "id": tid, "name": t.name, "core": t.core, "fpu": t.fpu.value,
             "flash_bytes": t.flash_capacity, "ram_bytes": t.ram_capacity,
             "max_clock_hz": t.max_clock_hz.value, "clock_note": t.max_clock_hz.note,
+            "checked_by_person": t.person_checked, "checked": t.checked_text,
             "flash": [{"name": r.name, "size": r.size, "where": r.where, "condition": r.condition} for r in t.flash],
             "ram": [{"name": r.name, "size": r.size, "where": r.where, "condition": r.condition} for r in t.ram],
             "sources": [f"{s['title']} ({s['revision']})" for s in t.sources.values()],

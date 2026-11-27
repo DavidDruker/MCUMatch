@@ -16,6 +16,12 @@ notes = [
     "A bootloader section (BOOTPROT) and SmartEEPROM blocks can be reserved inside main flash (Table 9-2 p.53, s25.6.2 p.602); both default to none and are not subtracted.",
 ]
 
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-26
+method = "Every cited page was re-read by a second automated pass, as text extracted from the PDF. Tables were not viewed as rendered pages."
+
 [sources.samd51-ds]
 title = "SAM D5x/E5x Family Complete Data Sheet"
 publisher = "Microchip Technology Inc."

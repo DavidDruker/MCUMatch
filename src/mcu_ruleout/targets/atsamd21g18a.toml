@@ -16,6 +16,12 @@ notes = [
     "The RWWEE section does not exist on 256 kB devices (Table 10-1 p.40, note 2).",
 ]
 
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-26
+method = "Every cited page was re-read by a second automated pass, as text extracted from the PDF. Tables were not viewed as rendered pages."
+
 [sources.samd21-ds]
 title = "SAM D21/DA1 Family Complete Data Sheet"
 publisher = "Microchip Technology Inc."

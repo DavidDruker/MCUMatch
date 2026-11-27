@@ -16,6 +16,12 @@ notes = [
     "The 2 kB EEPROM is reached through registers and is not counted as flash or RAM (s8.2.4 p.534).",
 ]
 
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-26
+method = "Every cited page was re-read by a second automated pass, as text extracted from the PDF. Tables were not viewed as rendered pages."
+
 [sources.tm4c123-ds]
 title = "Tiva TM4C123GH6PM Microcontroller Data Sheet"
 publisher = "Texas Instruments"

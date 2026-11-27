@@ -72,9 +72,11 @@ model is a true lower bound on real silicon. See [VALIDATION.md](VALIDATION.md).
 
 ## The target catalogue
 
-- **Eleven targets.** Nine were added on 2026-11-26 by automated agents reading manufacturers'
-  documents, then re-read once by a second automated pass. No person has checked them yet. Each
-  spec says how it was read (`mcu-ruleout targets NAME`).
+- **Eleven targets, none checked by a person.** All were read from manufacturers' documents by
+  automated agents (two on 2026-11-24, nine on 2026-11-26), then re-read once by a second
+  automated pass. Each spec has a `[checked]` record that says so, every report marks such a
+  target with `^`, and `mcu-ruleout targets NAME` shows how it was read. A wrong capacity or clock
+  figure would make verdicts for that part wrong in either direction.
 - **Tables were read as extracted text**, not as rendered pages. A misread column is possible.
 - **Two Nordic parts have no page numbers** because only the HTML edition could be read.
 - **Two Kinetis parts have no memory addresses** because NXP's reference manuals need a login.

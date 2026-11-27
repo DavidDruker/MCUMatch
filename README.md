@@ -4,6 +4,19 @@ A command-line tool that tells you which Cortex-M0+ and Cortex-M4F microcontroll
 **cannot** fit or run in time on, even in the best case. Give it your code and a deadline, and it
 strikes the impossible parts off a list before you buy a board.
 
+## Status
+
+Pre-release (0.2.0.dev0). The timing bound has not been tested against real hardware.
+
+| | |
+|---|---|
+| Cores supported | Cortex-M0+ and Cortex-M4F |
+| Built-in targets | 11 |
+| Targets checked by a person | 0 of 11 (the rest are marked `^` in every report) |
+| Validation against hardware | N = 0 measurements compared (run of 2026-11-24) |
+
+The plan from here to 1.0 is in [docs/ROADMAP.md](docs/ROADMAP.md).
+
 ## What it does not do
 
 - **It never says code fits or meets a deadline.** The only verdicts are `RULED OUT` and
@@ -225,9 +238,13 @@ It uses only Python's standard library.
 
 Every number in a target file cites its document, section and page. Capacity is deliberately the
 most generous figure, because a rule-out must hold in the best case. `mcu-ruleout targets NAME`
-prints one target with the citation behind each number and a line on how it was read. The nine
-targets added on 2026-11-26 were read by automated agents and re-read once; a person has not yet
-checked them. STM32 parts are missing because ST's site could not be reached. To add a part, see
+prints one target with the citation behind each number and a line on how it was read.
+
+**No built-in spec has been checked by a person yet.** All eleven were read from the
+manufacturers' documents by automated agents and re-read once by a second automated pass. Each
+spec carries a `[checked]` record saying so, and every report marks such a target with `^`. Treat
+a verdict on a marked target as provisional until you have compared the cited pages yourself.
+STM32 parts are missing because ST's site could not be reached. To add a part, see
 [docs/TARGETS.md](docs/TARGETS.md).
 
 ## Tests

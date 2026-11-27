@@ -52,10 +52,23 @@ def format_clock(hz: float) -> str:
     return f"{hz / 1e6:,.1f} MHz".replace(".0 MHz", " MHz") if hz >= 1e6 else f"{hz / 1e3:,.1f} kHz"
 
 
+UNCHECKED_MARK = "^"
+UNCHECKED_NOTE = ("^ spec not checked by a person: its capacity and clock figures were read from the "
+                  "manufacturer's documents by an automated agent and may be wrong. "
+                  "`mcu-ruleout targets NAME` shows how each was read.")
+
+
 def _target_json(t: Target) -> dict:
+    c = t.checked
     return {"id": t.id, "name": t.name, "core": t.core, "spec": str(t.path),
             "flash_capacity_bytes": t.flash_capacity, "ram_capacity_bytes": t.ram_capacity,
-            "max_clock_hz": t.max_clock_hz.value}
+            "max_clock_hz": t.max_clock_hz.value, "checked_by_person": t.person_checked,
+            "checked": None if c is None else {"by": c.by, "date": c.date, "method": c.method, "notes": c.notes}}
+
+
+def _spec_check_line(t: Target) -> str | None:
+    """A line for the single-target reports when the spec's numbers have not been checked by a person."""
+    return None if t.person_checked else f"            spec {t.checked_text}"
 
 
 # ---------------------------------------------------------------------------------------
@@ -104,6 +117,8 @@ def print_memory(res: M.MemoryResult, inputs: dict, vers: dict) -> None:
     t = res.target
     print(f"mcu-ruleout {vers['mcu-ruleout']}: memory check")
     print(f"Target:     {t.id} - {t.name}  ({t.path})")
+    if _spec_check_line(t):
+        print(_spec_check_line(t))
     print(f"Input:      {inputs['description']}")
     for k, v in vers.items():
         if k != "mcu-ruleout":
@@ -189,6 +204,8 @@ def print_timing(res: T.TimingResult, built: str, call_args: tuple[int, ...], ve
     us = 1e6
     print(f"mcu-ruleout {vers['mcu-ruleout']}: timing check (best-case lower bound)")
     print(f"Target:     {target.id} - {target.name}  ({target.path})")
+    if _spec_check_line(target):
+        print(_spec_check_line(target))
     print(f"Input:      {built}")
     print(f"            entry={trace.entry}  measured={trace.measure}  args={list(call_args)}")
     for k, v in vers.items():
@@ -295,13 +312,23 @@ def _row_cells(r: Row, deadline_s: float | None) -> list[str]:
     ram = _need_have(r.memory.ram_lb, t.ram_capacity) if r.memory else "-"
     time = format_duration(r.timing.time_lb_s) if r.timing else "-"
     status = r.status + (" *" if r.depends_on_library else "")
-    return [t.id, t.core.replace("cortex-", ""), flash, ram, f"{time} at {format_clock(t.max_clock_hz.value)}"
+    name = t.id if t.person_checked else f"{t.id} {UNCHECKED_MARK}"
+    return [name, t.core.replace("cortex-", ""), flash, ram, f"{time} at {format_clock(t.max_clock_hz.value)}"
             if r.timing else time, status]
 
 
 _HEAD = ["target", "core", "flash, at least", "RAM, at least", "best-case time", "verdict"]
 _LIBRARY_NOTE = ("* depends on library code: the rule-out would not stand if the toolchain's runtime library "
                  "routines were replaced by faster or smaller ones. Run the single check for details.")
+
+
+def _footnotes(sl: Shortlist) -> list[str]:
+    out = []
+    if any(r.depends_on_library for r in sl.rows):
+        out.append(_LIBRARY_NOTE)
+    if any(not r.target.person_checked for r in sl.rows):
+        out.append(UNCHECKED_NOTE)
+    return out
 
 
 def _summary_lines(sl: Shortlist) -> list[str]:
@@ -351,8 +378,8 @@ def print_shortlist(sl: Shortlist, inputs: dict, vers: dict) -> None:
         print("  " + "  ".join(c.ljust(w) for c, w in zip(row, widths)).rstrip())
         if i == 0:
             print("  " + "  ".join("-" * w for w in widths))
-    if any(r.depends_on_library for r in sl.rows):
-        print("\n" + textwrap.fill(_LIBRARY_NOTE, width=98, initial_indent="  ", subsequent_indent="    "))
+    for note in _footnotes(sl):
+        print("\n" + textwrap.fill(note, width=98, initial_indent="  ", subsequent_indent="    "))
     for r in sl.rows:
         for e in r.errors:
             print(f"  {r.target.id}: {e}")
@@ -378,8 +405,8 @@ def shortlist_markdown(sl: Shortlist, inputs: dict, vers: dict) -> str:
         out.append(f"- Timing not checked: {sl.timing_skipped}")
     out += ["", "## Result", "", "| " + " | ".join(_HEAD) + " |", "|" + "---|" * len(_HEAD)]
     out += ["| " + " | ".join(_row_cells(r, sl.deadline_s)) + " |" for r in sl.rows]
-    if any(r.depends_on_library for r in sl.rows):
-        out += ["", _LIBRARY_NOTE.replace("* ", "\\* ", 1)]
+    for note in _footnotes(sl):
+        out += ["", "\\" + note]  # the marks * and ^ are escaped so Markdown shows them as typed
     out += [""] + [f"- {line}" for line in _summary_lines(sl)]
     errors = [f"- `{r.target.id}`: {e}" for r in sl.rows for e in r.errors]
     if errors:
@@ -388,7 +415,7 @@ def shortlist_markdown(sl: Shortlist, inputs: dict, vers: dict) -> str:
     out += ["", "## Where each capacity figure comes from", ""]
     for r in sorted(sl.rows, key=lambda r: r.target.id):
         t = r.target
-        out += [f"### {t.id}: {t.name}", ""]
+        out += [f"### {t.id}: {t.name}", "", f"- Spec {t.checked_text}"]
         clock = t.max_clock_hz
         out.append(f"- Maximum clock {format_clock(clock.value)}: {t.sources[clock.source]['title']}, {clock.where}")
         for kind, regions in (("Flash", t.flash), ("RAM", t.ram)):

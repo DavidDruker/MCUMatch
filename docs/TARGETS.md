@@ -29,6 +29,11 @@ Check a spec by showing it:
    chip, is a different spec.
 6. **Say how it was read.** `provenance` records who or what extracted the numbers and how they
    were checked.
+7. **Record the check.** `[checked]` says who last compared every number with the cited pages:
+   `by = "person"` or `by = "agent"`, the `date`, and the `method`. A spec without the record, or
+   with `by = "agent"`, is marked `^` in every report as "not checked by a person". Write
+   `by = "person"` only after you have opened every cited page in the rendered document (not text
+   extracted from it) and confirmed the number, its unit, the section and the printed page.
 
 ## Fields
 
@@ -40,6 +45,7 @@ Check a spec by showing it:
 | `core` | yes | `cortex-m0plus` or `cortex-m4f` |
 | `gcc_flags` | yes | A tool choice, not a datasheet fact. Use exactly the flags of an existing spec with the same core, or the shortlist will build that core twice |
 | `provenance` | no | How the numbers were read and checked |
+| `[checked]` | no, but a built-in spec needs it | `by` (`"person"` or `"agent"`), `date` (`2026-11-27`), `method` (for example "rendered PDF pages, every cited page opened"), and optional `notes`. No other keys |
 | `notes` | no | Conditions, variants, anything that would mislead if left unsaid |
 | `[sources.KEY]` | yes | `title`, `revision`, `url`, `accessed`; `publisher` is welcome |
 | `[fpu]` | yes | `value`, `source`, `where`; `note` if it is inferred |
@@ -53,6 +59,19 @@ The flags in use today:
 |---|---|
 | `cortex-m0plus` | `["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]` |
 | `cortex-m4f` | `["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]` |
+
+A check record looks like this:
+
+```toml
+[checked]
+by = "person"
+date = 2026-12-03
+method = "Rendered PDF pages; every cited page opened and each number, unit and page confirmed."
+notes = "Table 10 lists the clock in two rows; the higher one is the normal run mode."
+```
+
+The test suite has a release gate that fails while any built-in spec is not checked by a person.
+It is marked as an expected failure until the whole catalogue has been checked.
 
 ## Example
 

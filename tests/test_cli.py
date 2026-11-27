@@ -10,6 +10,7 @@ from pathlib import Path
 from mcu_ruleout.build import build, user_config
 from mcu_ruleout.cli import EXIT_NOT_RULED_OUT, EXIT_RULED_OUT, main
 from mcu_ruleout.elfsize import read_sizes
+from mcu_ruleout.targets import builtin_target_paths, load_target
 
 from .helpers import CORE_FLAGS, DATA, MEMTEST, needs_toolchain, toolchain
 
@@ -96,6 +97,19 @@ class TestTargetsCommand(unittest.TestCase):
         ids = {t["id"]: t for t in json.loads(out)}
         self.assertEqual(ids["nrf52840"]["max_clock_hz"], 64_000_000)
         self.assertEqual(ids["rp2040-pico"]["core"], "cortex-m0plus")
+        for t in ids.values():
+            self.assertEqual(t["checked_by_person"], t["checked"]["by"] == "person")
+
+    def test_list_and_detail_say_whether_a_person_checked_the_spec(self):
+        builtin = [load_target(p) for p in builtin_target_paths().values()]
+        checked = sum(t.person_checked for t in builtin)
+        _, out = run("targets")
+        self.assertIn(f"{checked} of {len(builtin)} specs have been checked by a person", out)
+        for t in builtin:
+            line = next(ln for ln in out.splitlines() if ln.startswith(t.id + " "))
+            self.assertEqual("^" in line.split()[1], not t.person_checked, line)
+        _, out = run("targets", TINY)  # the fixture has no [checked] record at all
+        self.assertIn("check: not checked by a person", out)
 
     def test_one_target_shows_the_citation_behind_every_number(self):
         code, out = run("targets", "rp2040-pico")

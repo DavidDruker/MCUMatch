@@ -17,6 +17,12 @@ notes = [
     "Flash configuration field, reserved regions and the split of the SRAM around 0x2000_0000 are in the reference manual, which was not read. Nothing is subtracted, so capacity stays an upper bound.",
 ]
 
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-26
+method = "Every cited page was re-read by a second automated pass, as text extracted from the PDF. Tables were not viewed as rendered pages."
+
 [sources.kl26-ds]
 title = "Kinetis KL26 Sub-Family Data Sheet: 48 MHz Cortex-M0+ Based Microcontroller"
 publisher = "Freescale Semiconductor (now NXP)"

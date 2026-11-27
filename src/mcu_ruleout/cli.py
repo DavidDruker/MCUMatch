@@ -79,8 +79,15 @@ def cmd_targets(args) -> int:
         if t is None:
             print(f"{tid:<18} INVALID: {err}")
             continue
-        print(f"{tid:<18} {t.core:<14} flash {t.flash_capacity:>10,} B  RAM {t.ram_capacity:>9,} B  "
+        mark = " " if t.person_checked else report.UNCHECKED_MARK
+        print(f"{tid:<16} {mark} {t.core:<14} flash {t.flash_capacity:>10,} B  RAM {t.ram_capacity:>9,} B  "
               f"max clock {t.max_clock_hz.value / 1e6:g} MHz  {t.name}")
+    loaded = [t for _, t, _ in rows if t]
+    unchecked = sum(not t.person_checked for t in loaded)
+    print(f"\n{len(loaded) - unchecked} of {len(loaded)} specs have been checked by a person against the cited "
+          "documents.")
+    if unchecked:
+        print(report.UNCHECKED_NOTE)
     return 0
 
 
@@ -107,6 +114,7 @@ def _show_target(t: Target) -> int:
         print(f"  source: {s['title']}, {s['revision']}, {s['url']} (accessed {s['accessed']})")
     if t.provenance:
         print(f"  how it was read: {t.provenance}")
+    print(f"  check: {t.checked_text}")
     return 0
 
 

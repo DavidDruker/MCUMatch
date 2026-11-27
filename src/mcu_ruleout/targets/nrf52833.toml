@@ -17,6 +17,12 @@ notes = [
     "Running from flash at 64 MHz can need up to 2 wait states with the cache off (CPU chapter, CPU performance). The timing check assumes none.",
 ]
 
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-26
+method = "The Memory chapter text and the memory layout figure were re-read by a second automated pass in a browser (HTML edition, no page numbers). The CPU chapter and the revision history were read once only."
+
 [sources.nrf52833-ps]
 title = "nRF52833 Product Specification"
 publisher = "Nordic Semiconductor"

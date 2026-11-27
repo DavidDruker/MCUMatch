@@ -60,6 +60,49 @@ class TestTargetSpecs(unittest.TestCase):
             load_target(_variant(text, "\n[max_clock_hz]",
                                  '\n[library_note]\nvalue = "x"\nsource = "fixture"\n\n[max_clock_hz]'))
 
+    def test_check_record_is_optional_and_strict(self):
+        text = TINY.read_text(encoding="utf-8")
+        t = load_target(TINY)
+        self.assertIsNone(t.checked)
+        self.assertFalse(t.person_checked)  # no record means nobody is known to have checked it
+        self.assertIn("not checked by a person", t.checked_text)
+
+        def with_record(body: str):
+            return load_target(_variant(text, "\n[sources.fixture]", f"\n[checked]\n{body}\n\n[sources.fixture]"))
+
+        person = with_record('by = "person"\ndate = 2026-12-03\nmethod = "rendered PDF pages"\nnotes = "two rows"')
+        self.assertTrue(person.person_checked)
+        self.assertEqual((person.checked.by, person.checked.date), ("person", "2026-12-03"))
+        self.assertEqual(person.checked_text, "checked by a person on 2026-12-03: rendered PDF pages (two rows)")
+        agent = with_record('by = "agent"\ndate = "2026-11-26"\nmethod = "extracted text"')
+        self.assertFalse(agent.person_checked)
+        self.assertIn("not checked by a person; read by an automated agent on 2026-11-26", agent.checked_text)
+        for body, message in (
+            ('by = "me"\ndate = 2026-12-03\nmethod = "x"', "'by' must be one of"),
+            ('by = "person"\nmethod = "x"', "needs a 'date'"),
+            ('by = "person"\ndate = "yesterday"\nmethod = "x"', "needs a 'date'"),
+            ('by = "person"\ndate = 2026-12-03', "needs a 'method'"),
+            ('by = "person"\ndate = 2026-12-03\nmethod = " "', "needs a 'method'"),
+            ('by = "person"\ndate = 2026-12-03\nmethod = "x"\nchecked_by = "y"', "unknown key"),
+        ):
+            with self.subTest(body=body), self.assertRaisesRegex(TargetSpecError, message):
+                with_record(body)
+
+    def test_every_builtin_spec_says_who_checked_it(self):
+        for tid, p in builtin_target_paths().items():
+            with self.subTest(target=tid):
+                t = load_target(p)
+                self.assertIsNotNone(t.checked, "a built-in spec needs a [checked] record")
+                self.assertTrue(t.provenance, "a built-in spec needs a provenance line")
+
+    # Release gate (roadmap task 1.1). It fails while any built-in spec has not been checked by a
+    # person, and is expected to fail until phase 1 of the roadmap ends. When every spec is checked
+    # this reports an unexpected success: remove the decorator then, so it guards every later spec.
+    @unittest.expectedFailure
+    def test_release_gate_every_builtin_spec_is_checked_by_a_person(self):
+        unchecked = [tid for tid, p in builtin_target_paths().items() if not load_target(p).person_checked]
+        self.assertEqual(unchecked, [])
+
     def test_builtin_targets_group_into_few_builds(self):
         # Targets share builds only if their flags match exactly, so a typo in one spec would
         # silently double the work of a shortlist.

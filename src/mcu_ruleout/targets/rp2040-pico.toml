@@ -8,12 +8,20 @@ core = "cortex-m0plus"
 # Tool choice, not a datasheet fact: GCC flags for this core.
 gcc_flags = ["-mcpu=cortex-m0plus", "-mthumb", "-mfloat-abi=soft"]
 
+provenance = "Extracted by an automated agent from the manufacturer's documents on 2026-11-24 (milestone M1). Not yet checked by a person."
+
 notes = [
     "Dual core (2x Cortex-M0+ r0p1, RP2040 datasheet s2.3 p.26 and s2.4.8 p.87). The second core adds no memory.",
     "Flash capacity is the Pico's 2 MB chip. Other RP2040 boards differ (RP2040 addresses up to 16 MB, datasheet s2.6.3 p.123), so they need their own spec.",
     "The 256-byte boot2 at the start of flash (datasheet s2.8.1 p.131) and the 16 kB boot ROM are not subtracted; capacity stays an upper bound.",
     "RAM capacity includes the XIP cache and USB DPRAM, which are usable as RAM only in some configurations. The datasheet itself totals 284 kB (s2.6.2.1 p.123).",
 ]
+
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-24
+method = "The values were re-checked against text extracted from the two PDFs (milestone M1 log). Pages were not viewed as rendered pages."
 
 [sources.rp2040-ds]
 title = "RP2040 Datasheet"

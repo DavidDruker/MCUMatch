@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import tomllib
 from dataclasses import dataclass, field
+from datetime import date
 from importlib import resources
 from pathlib import Path
 
@@ -36,6 +37,18 @@ class Region:
     condition: str = "always"
 
 
+CHECKED_BY = ("person", "agent")
+
+
+@dataclass(frozen=True)
+class Checked:
+    """Who last compared the spec's numbers with the cited documents, when and how."""
+    by: str  # "person" or "agent"
+    date: str  # ISO date
+    method: str
+    notes: str = ""
+
+
 @dataclass(frozen=True)
 class Target:
     id: str
@@ -49,6 +62,7 @@ class Target:
     sources: dict[str, dict]
     notes: tuple[str, ...] = ()
     provenance: str = ""  # how the numbers were read and checked
+    checked: Checked | None = None  # None: the spec carries no check record
     library_note: Cited | None = None  # a documented faster or smaller runtime library for this part
     path: Path | None = field(default=None, compare=False)
 
@@ -59,6 +73,20 @@ class Target:
     @property
     def ram_capacity(self) -> int:
         return sum(r.size for r in self.ram)
+
+    @property
+    def person_checked(self) -> bool:
+        """True only when a person has compared every number with the cited document pages."""
+        return self.checked is not None and self.checked.by == "person"
+
+    @property
+    def checked_text(self) -> str:
+        """One line on the state of the check, for reports."""
+        c = self.checked
+        if c is None:
+            return "not checked by a person (the spec has no [checked] record)"
+        who = "checked by a person" if c.by == "person" else "not checked by a person; read by an automated agent"
+        return f"{who} on {c.date}: {c.method}" + (f" ({c.notes})" if c.notes else "")
 
     @property
     def library_note_text(self) -> str:
@@ -83,6 +111,33 @@ def _check_citation(item: dict, sources: dict, ctx: str) -> None:
             raise TargetSpecError(f"{ctx} has no '{k}' citation")
     if item["source"] not in sources:
         raise TargetSpecError(f"{ctx} cites unknown source {item['source']!r}")
+
+
+def _checked(d: dict, ctx: str) -> Checked | None:
+    item = d.get("checked")
+    if item is None:
+        return None
+    if not isinstance(item, dict):
+        raise TargetSpecError(f"{ctx}: [checked] must be a table")
+    unknown = set(item) - {"by", "date", "method", "notes"}
+    if unknown:
+        raise TargetSpecError(f"{ctx}: [checked] has unknown key(s): {', '.join(sorted(unknown))}")
+    if item.get("by") not in CHECKED_BY:
+        raise TargetSpecError(f"{ctx}: [checked] 'by' must be one of: {', '.join(CHECKED_BY)}")
+    when = item.get("date")
+    if isinstance(when, str):
+        try:
+            when = date.fromisoformat(when)
+        except ValueError:
+            when = None
+    if not isinstance(when, date):
+        raise TargetSpecError(f"{ctx}: [checked] needs a 'date' (YYYY-MM-DD)")
+    for k in ("method", "notes"):
+        if k in item and not isinstance(item[k], str):
+            raise TargetSpecError(f"{ctx}: [checked] '{k}' must be text")
+    if not item.get("method", "").strip():
+        raise TargetSpecError(f"{ctx}: [checked] needs a 'method': how the numbers were compared with the documents")
+    return Checked(item["by"], when.isoformat(), item["method"].strip(), item.get("notes", "").strip())
 
 
 def _regions(d: dict, key: str, sources: dict, ctx: str) -> tuple[Region, ...]:
@@ -136,6 +191,7 @@ def load_target(path: str | Path) -> Target:
         fpu=_cited(d, "fpu", sources, ctx), max_clock_hz=clock,
         flash=_regions(d, "flash", sources, ctx), ram=_regions(d, "ram", sources, ctx),
         sources=sources, notes=tuple(d.get("notes", [])), provenance=d.get("provenance", ""),
+        checked=_checked(d, ctx),
         library_note=_cited(d, "library_note", sources, ctx) if "library_note" in d else None, path=path,
     )
 

@@ -9,12 +9,20 @@ core = "cortex-m4f"
 # The PS does not name the FPU architecture. [VERIFY against Arm's Cortex-M4 documentation in M3]
 gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
 
+provenance = "Extracted by an automated agent from the manufacturer's documents on 2026-11-24 (milestone M1). Not yet checked by a person."
+
 notes = [
     "Chip-level capacity. A board with external QSPI flash can execute from the XIP window at 0x12000000-0x19FFFFFF (PS Figure 3 p.23, s6.19.5 p.580); such a board needs its own spec.",
     "A SoftDevice (Nordic BLE stack) would reserve part of flash and RAM. That is not subtracted, so capacity stays an upper bound.",
     "The code-RAM alias at 0x00800000 is the same physical RAM as 0x20000000 (PS s4.2 p.21-22) and is not counted twice.",
     "The Cortex-M4 core revision is not stated in the PS.",
 ]
+
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-24
+method = "Flash, RAM, clock and FPU figures were confirmed by a second, independent fetch of Nordic's HTML pages (milestone M1 log)."
 
 [sources.nrf52840-ps]
 title = "nRF52840 Product Specification"

@@ -21,6 +21,12 @@ notes = [
     "Flash configuration field and reserved regions are not subtracted, so capacity stays an upper bound.",
 ]
 
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-26
+method = "Every cited page was re-read by a second automated pass, as text extracted from the PDF. Tables were not viewed as rendered pages."
+
 [sources.k64-ds]
 title = "Kinetis K64F Sub-Family Data Sheet"
 publisher = "NXP Semiconductors"

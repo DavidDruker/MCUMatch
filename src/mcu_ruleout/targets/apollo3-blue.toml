@@ -16,6 +16,12 @@ notes = [
     "The boot loader ROM is a separate region and is not counted as flash (Table 5 p.78). Any flash a secure boot loader keeps is not subtracted, so capacity stays an upper bound.",
 ]
 
+# Who last compared these numbers with the cited documents. A release needs by = "person".
+[checked]
+by = "agent"
+date = 2026-11-26
+method = "Every cited page was re-read by a second automated pass, as text extracted from the PDF. Tables were not viewed as rendered pages."
+
 [sources.apollo3-ds]
 title = "Apollo3 and Apollo3 Blue SoC Datasheet"
 publisher = "Ambiq Micro, Inc."

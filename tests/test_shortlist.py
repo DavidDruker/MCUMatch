@@ -8,6 +8,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from mcu_ruleout import report
 from mcu_ruleout import shortlist as S
 from mcu_ruleout.cli import EXIT_ERROR, EXIT_NOT_RULED_OUT, EXIT_RULED_OUT, main
 from mcu_ruleout.targets import builtin_target_paths, load_target
@@ -42,6 +43,28 @@ class TestGrouping(unittest.TestCase):
         row = S.Row(load_target(TINY))
         self.assertEqual((row.status, row.ruled_out, row.evaluated, row.depends_on_library),
                          ("no verdict", False, False, False))
+
+    def test_a_spec_not_checked_by_a_person_is_marked_and_footnoted(self):
+        unchecked = load_target(TINY)  # no [checked] record
+        with tempfile.TemporaryDirectory() as tmp:
+            spec = Path(tmp) / "checked-m0plus.toml"
+            spec.write_text(Path(TINY).read_text(encoding="utf-8").replace(
+                "\n[sources.fixture]", '\n[checked]\nby = "person"\ndate = 2026-12-03\nmethod = "rendered pages"\n'
+                                       "\n[sources.fixture]").replace("tiny-m0plus", "checked-m0plus"),
+                encoding="utf-8")
+            checked = load_target(spec)
+        self.assertEqual(report._row_cells(S.Row(unchecked), None)[0], "tiny-m0plus ^")
+        self.assertEqual(report._row_cells(S.Row(checked), None)[0], "checked-m0plus")
+        self.assertEqual(report._footnotes(S.Shortlist([S.Row(checked)], [])), [])
+        notes = report._footnotes(S.Shortlist([S.Row(checked), S.Row(unchecked)], []))
+        self.assertEqual(len(notes), 1)
+        self.assertIn("not checked by a person", notes[0])
+        md = report.shortlist_markdown(S.Shortlist([S.Row(checked), S.Row(unchecked)], []),
+                                       {"description": "x"}, {"mcu-ruleout": "test"})
+        self.assertIn("| tiny-m0plus ^ |", md)
+        self.assertIn("| checked-m0plus |", md)
+        self.assertIn("\\^ spec not checked by a person", md)
+        self.assertIn("- Spec checked by a person on 2026-12-03: rendered pages", md)
 
 
 @needs_toolchain
