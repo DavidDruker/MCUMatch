@@ -3,11 +3,10 @@
 Many projects ship Arm's CMSIS-DSP library instead of hand-written loops. The tool can check such
 code: compile the library functions you use together with your harness, from your own checkout.
 
-> **Not yet run.** This recipe, the harness `kernels/cmsis/bench_arm_fir_f32.c` and the test
-> `tests/test_cmsis_dsp.py` were written on 2026-11-27 without a CMSIS-DSP checkout on the
-> machine. Nothing here has been compiled against the library. The test runs the recipe as soon as
-> `CMSIS_DSP_PATH` is set; run it once and correct whatever differs (most likely an include
-> folder), then remove this note.
+**Checked in CI.** Every push runs this recipe against CMSIS-DSP v1.18.0 (commit `4b6f265`) and the
+Core headers of CMSIS_6 v6.4.0 (commit `af1b110`), checked out for that job only: the harness
+builds for both cores, its self-test returns 0, and the cycles are counted in `arm_fir_f32`. It has
+not been run with other versions of the library.
 
 ## What you need
 

@@ -6,8 +6,9 @@ the compiler on your own machine. Nothing is uploaded anywhere.
 | Tested | Where |
 |---|---|
 | Windows 11, Python 3.14, Arm GNU Toolchain 14.2.Rel1 | Development |
-| Ubuntu, Python 3.11 and 3.14, the same toolchain | Continuous integration |
-| macOS | Not yet. The steps below are the expected ones, and a CI job for macOS is written but has not run |
+| Ubuntu, Python 3.11 to 3.14, the same toolchain | Continuous integration |
+| Windows Server, Python 3.11 and 3.14, the same toolchain | Continuous integration |
+| macOS on Apple silicon, Python 3.11 and 3.14, the same toolchain | Continuous integration. Nobody has yet installed it by hand on a Mac following the steps below |
 
 ## 1. The tool
 

@@ -115,10 +115,27 @@ jobs:
           DSP: ${{ github.workspace }}/third_party/CMSIS-DSP
           CORE: ${{ github.workspace }}/third_party/CMSIS_6/CMSIS/Core/Include
         run: |
-          python -m mcu_ruleout shortlist kernels/cmsis/bench_arm_fir_f32.c \
-            "$DSP/Source/FilteringFunctions/arm_fir_f32.c" "$DSP/Source/FilteringFunctions/arm_fir_init_f32.c" \
-            -I "$DSP/Include" -I "$DSP/PrivateInclude" -I "$CORE" -D ARM_MATH_LOOPUNROLL --cflags "-O3" \
-            --entry bench_arm_fir_f32 --measure fir_block --deadline 100us || test $? -eq 3
+          recipe=(kernels/cmsis/bench_arm_fir_f32.c
+            "$DSP/Source/FilteringFunctions/arm_fir_f32.c" "$DSP/Source/FilteringFunctions/arm_fir_init_f32.c"
+            -I "$DSP/Include" -I "$DSP/PrivateInclude" -I "$CORE" -D ARM_MATH_LOOPUNROLL --cflags "-O3"
+            --entry bench_arm_fir_f32 --measure fir_block)
+          # Exit code 3 means every target was ruled out, which is a result, not a failure.
+          python -m mcu_ruleout shortlist "${recipe[@]}" --deadline 100us 2> /dev/null > shortlist.txt || test $? -eq 3
+          cat shortlist.txt
+          # The table and the floors go on the run's summary, without the long footnote.
+          sed -n '/^  target/,$p' shortlist.txt | grep -v -e "spec not checked" -e "documents by an automated" -e "was read\." -e "^The memory and timing" > table.txt
+          python .github/scripts/annotate_failures.py --notice "arm_fir_f32, 29 taps, block 32, deadline 100 us" table.txt
+          python -m mcu_ruleout timing --target nrf52840 "${recipe[@]}" --deadline 100us > timing.txt || test $? -eq 3
+          sed -n '/^Builds/,/^Best-case load/p' timing.txt > builds.txt
+          python .github/scripts/annotate_failures.py --notice "arm_fir_f32 on the nRF52840, builds" builds.txt
+
+      - name: The measurement kit builds this kernel too
+        env:
+          DSP: ${{ github.workspace }}/third_party/CMSIS-DSP
+          CORE: ${{ github.workspace }}/third_party/CMSIS_6/CMSIS/Core/Include
+        run: |
+          python .github/scripts/kit_cmsis_bounds.py "$DSP" "$CORE" | tee kit-bounds.txt
+          python .github/scripts/annotate_failures.py --notice "Kit image for arm_fir_f32-29x32" kit-bounds.txt
 
   container:
     # The Dockerfile at the top of the repository: the pinned toolchain plus this checkout.

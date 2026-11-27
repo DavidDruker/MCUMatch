@@ -44,7 +44,7 @@ that needs no person, board, login or publishing step has been done: phase 0 (ex
 and the rename), task 1.1, phase 3, and the software halves of phases 4 to 7. The progress log
 (section 12) lists each task with its commit, and
 [docs/study/READINESS.md](study/READINESS.md) walks through the entry criteria of the test:
-**1 of 7 is met.** Nothing has been pushed, so CI has not run on any of it. Spend is still zero.
+**1 of 7 is met.** The work is pushed, and CI passes on Linux, Windows and macOS. Spend is still zero.
 
 One result bears on section 11. The kernel zoo ([docs/study/KERNEL_ZOO.md](study/KERNEL_ZOO.md))
 found that 81 of 86 rule-outs at 100 % load, on this project's own kernels, are timing rule-outs of
@@ -327,13 +327,13 @@ make writing a harness easy.
   - `docs/HARNESS.md`: why each rule exists (inlining loses the build, caller-owned buffers are
     invisible, use your best-case input), with a worked example.
   - **Accept:** the scaffold builds and runs through `shortlist` on both cores in a test.
-- [ ] **3.5 CMSIS-DSP recipe.** (M) Engineers ship CMSIS-DSP, so the test must use it.
+- [x] **3.5 CMSIS-DSP recipe.** (M) Engineers ship CMSIS-DSP, so the test must use it.
   - Document how to point the tool at a local CMSIS-DSP checkout (Apache-2.0; not copied into this
     repo) with `-I` and source files, using `arm_fir_f32` as the worked example.
   - Add a test that runs only when `CMSIS_DSP_PATH` is set.
-  - *Status 2026-11-27:* `docs/CMSIS_DSP.md`, `kernels/cmsis/bench_arm_fir_f32.c` and
-    `tests/test_cmsis_dsp.py` are written but have never been compiled against CMSIS-DSP: there was
-    no checkout on the machine. Set `CMSIS_DSP_PATH`, run the test, fix what differs, then tick this.
+  - *Status 2026-11-27:* done. A CI job checks out CMSIS-DSP v1.18.0 and the CMSIS_6 v6.4.0 Core
+    headers at pinned commits and runs the recipe's tests on every push; they pass. The first run
+    found a bug that affected everyone: `--cflags -O3` was rejected by the argument parser.
 - [x] **3.6 Error messages with fixes.** (M) For the most likely failures, print one line saying what
   to do: toolchain missing; measured function inlined or cloned; harness touches a peripheral
   (unmapped memory); SVC/WFI/BKPT in the measured code; instruction limit reached; missing static
@@ -461,7 +461,7 @@ after the fact.
 
 Runs alongside phases 1 to 5.
 
-- [ ] **6.1 Cross-platform CI.** (M) *(Status 2026-11-27: the workflow is written but has never run, because nothing was pushed. Not accepted until every job is green.)* Add `windows-latest` and `macos-14` jobs with the Arm toolchain
+- [x] **6.1 Cross-platform CI.** (M) *(Status 2026-11-27: every job is green on Linux, Windows and macOS. The macOS jobs use `macos-latest`, because the `macos-14` label is no longer offered.)* Add `windows-latest` and `macos-14` jobs with the Arm toolchain
   archives for those hosts and their published checksums. Python 3.11 to 3.14. A packaging job:
   build sdist and wheel, install the wheel in a clean environment, run `doctor` and one example.
   - **Accept:** all jobs green; the packaging job proves targets, cycle tables, examples and UI
@@ -493,7 +493,7 @@ Runs alongside phases 1 to 5.
   start with pipx, what a verdict means, links to limitations and validation, and how to contribute.
 - [x] **6.12 Tidy the docs.** (S) Move the milestone logs (M0 to M6) to `docs/history/` and add a
   short `docs/README.md` index.
-- [ ] **6.13 Optional: reproducibility container.** *(Not started: it could not be built or tested here.)* (M) A Dockerfile with the pinned toolchain and the
+- [x] **6.13 Optional: reproducibility container.** *(Status 2026-11-27: the `Dockerfile` is in, and a CI job builds it and runs a check and the validation dry run inside it. No image is published: the image contains GPL software, so passing it on is your decision.)* (M) A Dockerfile with the pinned toolchain and the
   tool, published free on GitHub Container Registry, so anyone can reproduce validation results.
 
 **Exit:** a stranger can install from PyPI, run an example, and find how to contribute, on any of

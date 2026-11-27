@@ -69,6 +69,44 @@ class TestPinnedToolchain(unittest.TestCase):
             self.assertEqual(len(sha), 64, archive)
 
 
+class TestCiAnnotations(unittest.TestCase):
+    """.github/scripts/annotate_failures.py: what a failed CI step leaves on the run's summary."""
+
+    def run_script(self, *argv: str) -> str:
+        import subprocess
+        import sys
+
+        script = REPO / ".github" / "scripts" / "annotate_failures.py"
+        return subprocess.run([sys.executable, str(script), *argv], capture_output=True, text=True, check=True).stdout
+
+    def test_a_failed_log_becomes_one_error_annotation(self):
+        import tempfile
+
+        log = ("test_a (tests.x.T.test_a) ... ok\ntest_b (tests.x.T.test_b) ... ERROR\n\n" + "=" * 70 + "\n"
+               "ERROR: test_b (tests.x.T.test_b)\n" + "-" * 70 + "\nTraceback (most recent call last):\n"
+               '  File "x.py", line 3, in test_b\nargparse.ArgumentError: argument --cflags: expected one argument\n\n'
+               "Ran 2 tests in 0.1s\n\nFAILED (errors=1)\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "test.log"
+            path.write_text(log, encoding="utf-8")
+            out = self.run_script(str(path))
+            self.assertEqual(self.run_script(str(Path(tmp) / "missing.log")), "")  # no log, no annotation
+        self.assertEqual(len(out.strip().splitlines()), 1)  # one annotation, newlines escaped
+        self.assertTrue(out.startswith("::error title=Test failures::1 failing: test_b%0A"))
+        self.assertIn("argparse.ArgumentError: argument --cflags: expected one argument", out)
+        self.assertIn("FAILED (errors=1)", out)
+
+    def test_output_worth_keeping_becomes_a_notice(self):
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "table.txt"
+            path.write_text("  target        core    verdict\n  nrf52840      m4f     82.3 % of it\n", encoding="utf-8")
+            out = self.run_script("--notice", "A table", str(path))
+        self.assertTrue(out.startswith("::notice title=A table::target  core  verdict%0A"))
+        self.assertIn("82.3 %25 of it", out)  # a percent sign is escaped
+
+
 class TestCommunityFiles(unittest.TestCase):
     def test_the_files_a_visitor_looks_for_exist(self):
         for name in ("LICENSE", "README.md", "CHANGELOG.md", "CONTRIBUTING.md", "CODE_OF_CONDUCT.md", "SECURITY.md",

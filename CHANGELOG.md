@@ -64,7 +64,7 @@ Everything since 0.1.0. Not released; `pyproject.toml` says `0.2.0.dev0`.
 - **`schema_version` and `kind`** in every JSON object, and `docs/JSON.md`.
 - A script that cross-checks target specs against vendor CMSIS packs, and a log for the
   person-check of every spec (`docs/CATALOGUE_CHECK.md`).
-- A CMSIS-DSP recipe (`docs/CMSIS_DSP.md`). Not yet run against the library.
+- A CMSIS-DSP recipe (`docs/CMSIS_DSP.md`), run in CI against CMSIS-DSP v1.18.0.
 - From before this changelog was started (milestone M6 and the commits before it): the
   `shortlist` command across targets, nine more targets, the split between your code and library
   code, the timing envelope (several optimisation levels, fastest build wins), the built-in
