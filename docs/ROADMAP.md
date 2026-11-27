@@ -180,7 +180,7 @@ cannot judge for memory. Expect that to hurt Gate 2.
 
 **Goal:** nothing the tool or its docs say is contradicted by its own findings.
 
-- [ ] **0.1 Fix "real hardware can only be slower".** (S)
+- [x] **0.1 Fix "real hardware can only be slower".** (S)
   - Change README line 13, `src/mcu_ruleout/report.py` line 20 (`NOT_A_PASS`), and
     `src/mcu_ruleout/ui_assets/index.html` lines 319-320 to say that the bound is for the binary
     the tool built: real hardware running *that binary* can only be slower, and a faster library,
@@ -188,10 +188,12 @@ cannot judge for memory. Expect that to hurt Gate 2.
   - Add a test that fails if any output or doc says "can only be slower" without naming the binary.
   - **Accept:** grep finds no unqualified claim; the new test passes.
 - [ ] **0.2 Record decisions D1 to D9** in section 3. (S)
+  - *Status 2026-11-27:* still open; these are yours to make. Work so far assumed the recommended
+    answers for D2 (DCO), D6 (`--max-load`, default 100), D7 and D8. None of that is hard to change.
 - [ ] **0.3 Rename the repo if D1 is yes.** (S) Update `pyproject.toml` `[project.urls]`,
   `docs/WRITEUP.md`, README links and the local remote URL.
   - **Accept:** old URL redirects; `pip install -e .` metadata shows the new URL.
-- [ ] **0.4 Add a status block at the top of the README.** (S) Cores supported, number of targets,
+- [x] **0.4 Add a status block at the top of the README.** (S) Cores supported, number of targets,
   how many are checked by a person, validation N and date. Update it whenever these change.
 - [ ] **0.5 Set up tracking.** (S) Optional: GitHub milestones named after phases 0 to 9 and one issue
   per task, so progress is visible to visitors. Labels: `catalogue`, `validation`, `kit`,
@@ -204,7 +206,7 @@ cannot judge for memory. Expect that to hurt Gate 2.
 **Goal:** every capacity and clock number has been checked by a person against the rendered
 document page, and the tool shows which specs have been.
 
-- [ ] **1.1 Add a `checked` record to the target schema.** (M)
+- [x] **1.1 Add a `checked` record to the target schema.** (M)
   - Fields: `by` (`person` or `agent`), `date`, `method` (for example "rendered PDF pages, every
     cited page opened"), optional `notes`.
   - `mcu-ruleout targets NAME` prints it. The shortlist marks rows whose spec has not been checked
@@ -214,6 +216,8 @@ document page, and the tool shows which specs have been.
   - Update `docs/TARGETS.md`.
   - **Accept:** schema tests pass; the shortlist shows the mark for unchecked specs.
 - [ ] **1.2 Person-check the 9 agent-read specs.** (L, about 1 to 2 h each)
+  - *Status 2026-11-27:* `docs/CATALOGUE_CHECK.md` is prepared with one row per number for all 11
+    specs and the steps to follow. The result columns are empty: this needs a person.
   - For each spec: open every cited page in the rendered PDF (not extracted text); confirm the
     number, the unit, the section and the printed page; confirm the "most generous figure" rule
     (clock modes, conditional RAM regions, aliases counted once); confirm the FPU line.
@@ -242,6 +246,9 @@ document page, and the tool shows which specs have been.
   - The pack is a cross-check, never a source: a mismatch means "re-read the datasheet", not "copy
     the pack".
   - **Accept:** the script runs on all specs and every mismatch is explained in `docs/CATALOGUE_CHECK.md`.
+  - *Status 2026-11-27:* the script, `scripts/pack_devices.toml` and tests on made-up packs are in.
+    Not accepted yet: no vendor pack has been downloaded, so it has not run on a real one and the
+    device name patterns are first guesses.
 - [ ] **1.8 Update README and LIMITATIONS** to the new catalogue state. (S)
 
 **Exit:** release-gate test passes for all built-in specs; the status block says 11 of 11 checked.
@@ -277,7 +284,7 @@ method already supports. ST's site blocks scripts, so a person downloads the doc
 **Goal:** make a rule-out more likely to matter, make results shareable without sharing code, and
 make writing a harness easy.
 
-- [ ] **3.1 Load limit (`--max-load`).** (L)
+- [x] **3.1 Load limit (`--max-load`).** (L)
   - Timing: rule out when the best-case time exceeds `PERCENT` of the deadline. Memory:
     `--max-flash-use` and `--max-ram-use` do the same against capacity.
   - Default 100 %, so today's verdicts do not change.
@@ -287,13 +294,13 @@ make writing a harness easy.
   - JSON gains `load_limit` and `best_case_load` fields.
   - **Accept:** boundary tests at exactly the limit and one step either side; forbidden-words tests
     extended; default-unchanged test.
-- [ ] **3.2 Always print the best-case load** as "at least N % of the deadline". (S) The words
+- [x] **3.2 Always print the best-case load** as "at least N % of the deadline". (S) The words
   "at least" are mandatory; it is a lower bound, not a prediction.
-- [ ] **3.3 Shareable results (`--share FILE`).** (M)
+- [x] **3.3 Shareable results (`--share FILE`).** (M)
   - Writes a redacted JSON: verdicts, floors, target ids, tool, table and toolchain versions,
     flags, load limit. No source text, no file paths; function names only with `--share-names`.
   - **Accept:** a test feeds a kernel with distinctive strings and asserts none appear in the file.
-- [ ] **3.4 Harness scaffold and guide.** (M)
+- [x] **3.4 Harness scaffold and guide.** (M)
   - `mcu-ruleout new NAME` writes a starter C file: kernel stub marked `noinline, noclone`, static
     buffers, a harness entry, a `SELFTEST` block, and the matching command line in a comment.
   - `docs/HARNESS.md`: why each rule exists (inlining loses the build, caller-owned buffers are
@@ -303,18 +310,21 @@ make writing a harness easy.
   - Document how to point the tool at a local CMSIS-DSP checkout (Apache-2.0; not copied into this
     repo) with `-I` and source files, using `arm_fir_f32` as the worked example.
   - Add a test that runs only when `CMSIS_DSP_PATH` is set.
-- [ ] **3.6 Error messages with fixes.** (M) For the most likely failures, print one line saying what
+  - *Status 2026-11-27:* `docs/CMSIS_DSP.md`, `kernels/cmsis/bench_arm_fir_f32.c` and
+    `tests/test_cmsis_dsp.py` are written but have never been compiled against CMSIS-DSP: there was
+    no checkout on the machine. Set `CMSIS_DSP_PATH`, run the test, fix what differs, then tick this.
+- [x] **3.6 Error messages with fixes.** (M) For the most likely failures, print one line saying what
   to do: toolchain missing; measured function inlined or cloned; harness touches a peripheral
   (unmapped memory); SVC/WFI/BKPT in the measured code; instruction limit reached; missing static
   buffers. One test per message.
-- [ ] **3.7 Trace a full firmware image.** (M) Phase 4 depends on this.
+- [x] **3.7 Trace a full firmware image.** (M) Phase 4 depends on this.
   - `emu.py` already maps every allocated section at its link address. Confirm that
     `timing --elf firmware.elf --entry bench --measure kernel` works for an image linked at a
     vendor address (0x0800_0000 for STM32, 0x1000_0000 for RP2040), with startup code present but
     never run.
   - Add a test with a synthetic firmware ELF at 0x0800_0000, and one where the measured function
     reads a peripheral and must fail with the message from 3.6.
-- [ ] **3.8 Web UI updates.** (M) Load-limit field, the "not checked by a person" mark, and a
+- [x] **3.8 Web UI updates.** (M) Load-limit field, the "not checked by a person" mark, and a
   "download shareable result" button. Only what is listed here; keep the page minimal.
 
 **Exit:** 3.1 to 3.7 merged with tests; release 0.2.0 (task 6.2) can include them.
@@ -585,4 +595,15 @@ Add one line per finished task.
 
 | Date | Task | Result | Commit |
 |---|---|---|---|
-| 2026-11-26 | Plan written | This file | |
+| 2026-11-26 | Plan written | This file | `a5e8927` |
+| 2026-11-27 | 0.1 | Wording fixed in README, reports and web page; `tests/test_wording.py` guards it | `383609a` |
+| 2026-11-27 | 0.4, 1.1 | README status block (kept true by `tests/test_docs.py`); `[checked]` record on all 11 specs, `^` mark in every report, release-gate test as an expected failure | `b72baf8` |
+| 2026-11-27 | 1.7 (part) | Pack cross-check script and tests on made-up packs; `docs/CATALOGUE_CHECK.md` prepared for the person check. Not run on real packs | `2e05c04` |
+| 2026-11-27 | 3.1, 3.2 | `--max-load`, `--max-flash-use`, `--max-ram-use`; best-case load always printed. Found and fixed: `--deadline 100us` parsed to just under 100 us | `90c0e09` |
+| 2026-11-27 | (bug) | A measured function reached by a tail call was reported as "never returned" | `c4e52d6` |
+| 2026-11-27 | 3.3 | `--share FILE`, built from an allow-list; leak test with distinctive strings | `71d9fa4` |
+| 2026-11-27 | 3.6 | One-line errors with a `Fix:`; code and read-only data are now mapped read-only, so a null-pointer write is caught | `c2bbf23` |
+| 2026-11-27 | 3.7 | Firmware images at 0x08000000 and 0x10000000 traced in place; the emulator's stack moves out of an image's way | `0dd6775` |
+| 2026-11-27 | 3.4 | `mcu-ruleout new NAME`, `docs/HARNESS.md`, "Entry returned" in the timing report | `8c201ec` |
+| 2026-11-27 | 3.5 (part) | CMSIS-DSP recipe, harness and gated test written; never run against the library | `40d0e80` |
+| 2026-11-27 | 3.8 | Web UI: load limit, unchecked-spec mark, shareable-result download | `bc8f0d7` |
