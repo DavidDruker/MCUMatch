@@ -58,7 +58,7 @@ from the rule was considered and rejected on 2026-11-24.
 The bound has been checked only against things I can compute myself, not against hardware:
 
 - two hand-written assembly sequences whose cycles were computed by hand from Arm's tables
-  (47 and 46 cycles), which the tool matches;
+  (47 and 45 cycles), which the tool matches;
 - a formula derived by hand from the compiler listing of the FIR kernel, which the tool matches
   at two sizes;
 - numeric checks that the emulator computes the right outputs.

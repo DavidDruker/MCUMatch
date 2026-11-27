@@ -165,10 +165,11 @@ class TestHandComputedSequences(unittest.TestCase):
         self.assertEqual(res.cycles_lb, 47)
         self.assertFalse(res.undocumented)
 
-    def test_m4f_sequence_is_46_cycles(self):
+    def test_m4f_sequence_is_45_cycles(self):
         tr = run_trace(self.elf["m4f"], "cortex-m4f", "seq_m4f")
         res = lower_bound(TINY, tr)
-        self.assertEqual(res.cycles_lb, 46)
+        self.assertEqual(res.cycles_lb, 45)  # 46 before Errata 01 lowered MLA from 2 cycles to 1
+        self.assertEqual(res.by_class["mla"], (1, 1))
         self.assertFalse(res.undocumented)
         # 28 instructions are on the path, but Unicorn does not report the one skipped inside the
         # IT block (movne after 'ite eq' with Z set). It costs 0 in the model either way.

@@ -30,7 +30,7 @@ that build cannot be counted. The build is skipped, and the report says so.
 
 A skipped build is not harmless. The bound is the minimum over the builds that could be traced, and
 the skipped ones are usually the fastest. In the worked example below, removing the attribute
-loses three of four builds and the bound rises from 1,384 to 2,157 cycles. That figure is no
+loses three of four builds and the bound rises from 1,382 to 2,155 cycles. That figure is no
 longer a lower bound for the code as you would really build it.
 
 `static` has the same effect and a second one: an inlined `static` function has no symbol at all,
@@ -222,20 +222,20 @@ mcu-ruleout shortlist rms_block.c --entry bench_rms_block --measure rms_block --
 ```text
   target            core    flash, at least  RAM, at least    best-case time        load, at least  verdict
   ----------------  ------  ---------------  ---------------  --------------------  --------------  -----------------------------------
-  apollo3-blue ^    m4f     1 kB of 1 MB     524 B of 384 kB  14.417 us at 96 MHz   28.8 %          not ruled out
-  atsamd51j19a ^    m4f     1 kB of 512 kB   524 B of 204 kB  11.533 us at 120 MHz  23.0 %          not ruled out
-  mk64fn1m0vll12 ^  m4f     1 kB of 1 MB     524 B of 256 kB  11.533 us at 120 MHz  23.0 %          not ruled out
-  nrf52832 ^        m4f     1 kB of 512 kB   524 B of 64 kB   21.625 us at 64 MHz   43.2 %          not ruled out
-  nrf52833 ^        m4f     1 kB of 512 kB   524 B of 128 kB  21.625 us at 64 MHz   43.2 %          not ruled out
-  nrf52840 ^        m4f     1 kB of 1 MB     524 B of 256 kB  21.625 us at 64 MHz   43.2 %          not ruled out
+  apollo3-blue ^    m4f     1 kB of 1 MB     524 B of 384 kB  14.396 us at 96 MHz   28.7 %          not ruled out
+  atsamd51j19a ^    m4f     1 kB of 512 kB   524 B of 204 kB  11.517 us at 120 MHz  23.0 %          not ruled out
+  mk64fn1m0vll12 ^  m4f     1 kB of 1 MB     524 B of 256 kB  11.517 us at 120 MHz  23.0 %          not ruled out
+  nrf52832 ^        m4f     1 kB of 512 kB   524 B of 64 kB   21.594 us at 64 MHz   43.1 %          not ruled out
+  nrf52833 ^        m4f     1 kB of 512 kB   524 B of 128 kB  21.594 us at 64 MHz   43.1 %          not ruled out
+  nrf52840 ^        m4f     1 kB of 1 MB     524 B of 256 kB  21.594 us at 64 MHz   43.1 %          not ruled out
   rp2040-pico ^     m0plus  948 B of 2 MB    540 B of 284 kB  19.505 us at 200 MHz  39.0 %          not ruled out
-  tm4c123gh6pm ^    m4f     1 kB of 256 kB   524 B of 32 kB   17.300 us at 80 MHz   34.5 %          not ruled out
+  tm4c123gh6pm ^    m4f     1 kB of 256 kB   524 B of 32 kB   17.275 us at 80 MHz   34.5 %          not ruled out
   atsamd21g18a ^    m0plus  948 B of 256 kB  540 B of 32 kB   81.271 us at 48 MHz   162.5 %         RULED OUT (timing)
   mkl26z64vft4 ^    m0plus  948 B of 64 kB   540 B of 8 kB    81.271 us at 48 MHz   162.5 %         RULED OUT (timing)
   mspm0g3507 ^      m0plus  948 B of 128 kB  540 B of 32 kB   48.763 us at 80 MHz   97.5 %          RULED OUT (timing: above 70 % load)
 
 Least that any part with the same core needs (lower bounds):
-  - cortex-m4f: flash 1 kB, RAM 524 B; 1,384 cycles; so a clock above 39.5 MHz at 70 % load
+  - cortex-m4f: flash 1 kB, RAM 524 B; 1,382 cycles; so a clock above 39.5 MHz at 70 % load
   - cortex-m0plus: flash 948 B, RAM 540 B; 3,901 cycles; so a clock above 111.5 MHz at 70 % load
 ```
 
@@ -255,12 +255,12 @@ check on the nRF52840 again:
 Builds                             instructions        cycles (lower bound)
   user: -O2                        not traced: rms_block was never executed (the compiler may have inlined or cloned it).
   envelope: -O3                    not traced: rms_block was never executed (the compiler may have inlined or cloned it).
-  envelope: -Os                           1,603         2,157  <- fastest
+  envelope: -Os                           1,603         2,155  <- fastest
   envelope: -O3 -flto              not traced: rms_block was never executed (the compiler may have inlined or cloned it).
 ```
 
-Three builds are lost, and the bound becomes 2,157 cycles from the `-Os` build alone. With the
-attribute it is 1,384. A "not traced" line means the bound may be too high. When a rule-out rests
+Three builds are lost, and the bound becomes 2,155 cycles from the `-Os` build alone. With the
+attribute it is 1,382. A "not traced" line means the bound may be too high. When a rule-out rests
 on such a bound the report adds a caution that names the skipped builds, and the shortlist marks
 the row with `!`.
 

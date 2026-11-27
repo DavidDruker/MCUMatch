@@ -82,6 +82,13 @@ Everything since 0.1.0. Not released; `pyproject.toml` says `0.2.0.dev0`.
 
 ### Verdicts may change
 
+- **Cortex-M4F cycle table, version 2: MLA and MLS cost 1 cycle, not 2.** Arm's Errata 01 to the
+  Cortex-M4 manual (DDI 0439B) corrects the two rows. Version 1 of the table used the manual's
+  uncorrected 2, so the bound was one cycle too high for every MLA or MLS executed, and for such
+  code it was not a true lower bound. Bounds for Cortex-M4F code that uses these instructions go
+  down, and a part that was ruled out by a small margin may no longer be. Cortex-M0+ results do
+  not change. The errata was read by an automated agent from text extracted from the PDF, not by
+  a person; the correction is applied anyway because lowering a count can only lower the bound.
 - **Deadlines are parsed exactly.** `--deadline 100us` used to become a value just under 100 µs,
   so a kernel whose best case was exactly 100 µs was ruled out. It is now not ruled out. Only a
   best case that equals the deadline to the last bit is affected.

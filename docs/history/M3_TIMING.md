@@ -105,6 +105,14 @@ Example (FIR, 16 taps, 64 outputs, `-O2 -std=c11`):
 | FPv4-SP as the nRF52840's FPU | Still open (the TRM's "About the FPU" page was not read). |
 | Emulator can trace IT blocks | Settled (finding 1). |
 
+**Added 2026-11-27 (roadmap task 1.6).** The two open rows above were looked at again. Both
+readings were made by an automated agent from Arm's documents and have not been checked by a person.
+
+| Item | Status on 2026-11-27 |
+|---|---|
+| Cortex-M4 table revision | Errata 01 (ARM DDI 0439B_Errata_01, ID033110) was read and compared row by row with issue B's Table 3-1. Its one erratum corrects MLA and MLS from 2 cycles to 1; MUL was already 1. Nothing else in Table 3-1 changes, and the errata does not touch Table 3.2 or Table 7.1. The cycle table is now version 2 with both rows lowered, and the hand-computed sequence is 45 cycles, not 46. Arm's current manual for r0p1 (document 100166) also shows 1 for both. Tables 3.2 and 7.1 were not compared with that later manual. |
+| FPv4-SP as the nRF52840's FPU | Arm's manual states it for the core: s7.1 About the FPU, p.7-2 of DDI 0439B says the Cortex-M4 FPU is an implementation of the single precision variant of the ARMv7-M Floating-Point Extension (FPv4-SP). The nRF52840 Product Specification says the part has that core with the FPU. |
+
 ## Decisions to review
 
 1. **Strict minimum everywhere** rather than modelling pipelining pairs or the divide's busy time.

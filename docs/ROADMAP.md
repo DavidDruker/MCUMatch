@@ -247,6 +247,13 @@ document page, and the tool shows which specs have been.
   - Add base addresses and the SRAM_L / SRAM_U split to the two Kinetis specs.
   - Note the flash memory controller reset values with page citations. Task 5.2 needs them.
 - [ ] **1.6 Close the open cycle-table items.** (M)
+  - *Status 2026-11-27:* both items were read, by an automated agent and not by a person, so the
+    box stays open until you have looked at the two documents yourself. **The errata does change
+    the table:** MLA and MLS are 1 cycle, not 2. That lowers the count, which is the safe
+    direction, so it is applied (cycle table version 2). The errata changes nothing else in
+    Table 3-1 and does not touch Tables 3.2 or 7.1. FPv4-SP is stated in the Cortex-M4 manual,
+    s7.1 p.7-2. Details: the addendum in `docs/history/M3_TIMING.md`. Still to do by a person:
+    open the errata PDF, and compare Tables 3.2 and 7.1 with Arm's current manual (100166).
   - Read Arm's Cortex-M4 r0p0 Errata 01 PDF. Record whether any cycle count in
     `cycle_tables/cortex-m4f.toml` changes. If one does, the change must only lower or keep a count
     for the bound to stay a lower bound; a raised count needs a decision and a log entry.

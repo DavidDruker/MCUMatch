@@ -1,5 +1,6 @@
-@ Hand-computed sequence for the Cortex-M4F cycle model (Arm DDI 0439B Tables 3.1 and 7.1).
-@ Expected: 46 cycles; one instruction is skipped inside the IT block. Counts are the table minimums.
+@ Hand-computed sequence for the Cortex-M4F cycle model (Arm DDI 0439B Tables 3.1 and 7.1, with
+@ Errata 01: MLA is 1 cycle, not the 2 that issue B prints).
+@ Expected: 45 cycles; one instruction is skipped inside the IT block. Counts are the table minimums.
     .syntax unified
     .cpu cortex-m4
     .fpu fpv4-sp-d16
@@ -24,7 +25,7 @@ seq_m4f:
     moveq  r0, #7               @ passes                   = 1
     movne  r0, #9               @ skipped                  = 0
     udiv   r2, r0, r0           @ 2 to 12, minimum         = 2
-    mla    r3, r0, r0, r2       @ 2
+    mla    r3, r0, r0, r2       @ 1 (Errata 01; issue B printed 2)
     vmov   r0, s17              @ float to core register   = 2
     vstr   s17, [r1]            @ VSTR.32                  = 2
     str    r3, [r1, #4]         @ single store, minimum    = 1

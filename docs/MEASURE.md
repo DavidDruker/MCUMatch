@@ -159,22 +159,23 @@ the CMSIS-DSP FIR from [CMSIS_DSP.md](CMSIS_DSP.md). The set is fixed by the pre
 before the first measurement. A kernel may not be added or dropped after results are seen.
 
 Every image is built at `-O2 -std=c11` with the target spec's own flags. The tool's bound for each
-kernel, timed as the kit times it (the whole harness entry), with Arm GNU Toolchain 14.2.Rel1:
+kernel, timed as the kit times it (the whole harness entry), with Arm GNU Toolchain 14.2.Rel1 and
+version 2 of the Cortex-M4F cycle table:
 
 | Kernel | Cortex-M4F bound, cycles | Cortex-M0+ bound, cycles | Share of the 2^24 SysTick range |
 |---|---|---|---|
-| `fir_f32-64x16` | 11,145 | 304,301 | 1.8 % |
-| `fir_f32-256x32` | 80,489 | 2,276,666 | 13.6 % |
-| `fir_q15-64x16` | 7,561 | 16,289 | 0.1 % |
-| `fir_q15-256x32` | 54,112 | 117,090 | 0.7 % |
-| `biquad_f32-256x2` | 21,844 | 711,329 | 4.2 % |
-| `biquad_f32-512x4` | 76,431 | 2,658,530 | 15.8 % |
+| `fir_f32-64x16` | 11,050 | 304,301 | 1.8 % |
+| `fir_f32-256x32` | 80,170 | 2,276,666 | 13.6 % |
+| `fir_q15-64x16` | 7,466 | 16,289 | 0.1 % |
+| `fir_q15-256x32` | 53,793 | 117,090 | 0.7 % |
+| `biquad_f32-256x2` | 21,588 | 711,329 | 4.2 % |
+| `biquad_f32-512x4` | 75,919 | 2,658,530 | 15.8 % |
 | `pid_f32-100` | 4,541 | 159,985 | 1.0 % |
 | `pid_f32-1000` | 45,041 | 1,455,816 | 8.7 % |
-| `fft_f32-64` | 13,765 | 274,511 | 1.6 % |
-| `fft_f32-256` | 66,273 | 1,438,757 | 8.6 % |
-| `matmul_f32-8x8` | 7,283 | 180,920 | 1.1 % |
-| `matmul_f32-16x16` | 49,331 | 1,265,177 | 7.5 % |
+| `fft_f32-64` | 13,701 | 274,511 | 1.6 % |
+| `fft_f32-256` | 66,017 | 1,438,757 | 8.6 % |
+| `matmul_f32-8x8` | 7,155 | 180,920 | 1.1 % |
+| `matmul_f32-16x16` | 48,819 | 1,265,177 | 7.5 % |
 
 The sizes were chosen with the last column in mind. On a Cortex-M0+ a run would have to take more
 than six times its bound to wrap the counter, and a run that does wrap is reported as an error.

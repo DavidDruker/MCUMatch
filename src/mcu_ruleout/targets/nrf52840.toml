@@ -6,7 +6,9 @@ id = "nrf52840"
 name = "Nordic nRF52840 (on-chip 1 MB flash, 256 kB RAM)"
 core = "cortex-m4f"
 # Tool choice, not a datasheet fact: fpv4-sp-d16 is GCC's name for the Cortex-M4 single-precision FPU.
-# The PS does not name the FPU architecture. [VERIFY against Arm's Cortex-M4 documentation in M3]
+# The PS does not name the FPU architecture. Arm's Cortex-M4 TRM does: s7.1 About the FPU, p.7-2 (ARM DDI 0439B)
+# says the Cortex-M4 FPU implements the single precision variant of the ARMv7-M Floating-Point Extension,
+# FPv4-SP. (Read by an automated agent on 2026-11-27; not checked by a person.)
 gcc_flags = ["-mcpu=cortex-m4", "-mthumb", "-mfpu=fpv4-sp-d16", "-mfloat-abi=hard"]
 
 provenance = "Extracted by an automated agent from the manufacturer's documents on 2026-11-24 (milestone M1). Not yet checked by a person."

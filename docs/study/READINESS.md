@@ -32,6 +32,10 @@ In the order that unblocks the most:
 
 ## Things found on the way that are worth knowing before the test
 
+- **The Cortex-M4F table charged MLA and MLS one cycle too many.** Arm's Errata 01 corrects the
+  manual's 2 to 1. For code using those instructions the bound was above the documented minimum,
+  so it was not a lower bound. The table is now version 2. The errata was read by an automated
+  agent, not by a person, and Tables 3.2 and 7.1 have not been compared with Arm's later manual.
 - **A deadline that the best case meets exactly was ruled out** (`--deadline 100us` was parsed to
   just under 100 µs). Fixed.
 - **A kernel called without its buffers gave a meaningless count** instead of an error, because a
@@ -39,8 +43,8 @@ In the order that unblocks the most:
   read-only and stops.
 - **A measured function reached by a tail call could not be traced.** Fixed.
 - **Removing `noinline, noclone` from the measured function can raise the bound**, because the
-  fastest builds are then skipped. In the harness guide's example the bound goes from 1,384 to
-  2,157 cycles. The report always printed which builds were skipped; a rule-out that rests on such
+  fastest builds are then skipped. In the harness guide's example the bound goes from 1,382 to
+  2,155 cycles. The report always printed which builds were skipped; a rule-out that rests on such
   a bound now also carries a caution in the verdict and a `!` mark in the shortlist.
 - **The kernel zoo** ([KERNEL_ZOO.md](KERNEL_ZOO.md)): on this project's own 22 kernels, at
   deadlines taken from sample rates, 81 of the 86 rule-outs at 100 % load are the trivial kind

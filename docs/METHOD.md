@@ -153,7 +153,8 @@ all of either, so each budget can be lowered:
 | What | Document |
 |---|---|
 | Cortex-M0+ cycle counts | Cortex-M0+ Technical Reference Manual r0p1 (ARM DDI 0484C), Table 3.1 |
-| Cortex-M4F cycle counts | Cortex-M4 Technical Reference Manual r0p0 (ARM DDI 0439B), Tables 3.1, 3.2 and 7.1 |
+| Cortex-M4F cycle counts | Cortex-M4 Technical Reference Manual r0p0 (ARM DDI 0439B), Tables 3.1, 3.2 and 7.1, with Errata 01 (ARM DDI 0439B_Errata_01) applied: MLA and MLS are 1 cycle, not 2 |
+| Cortex-M4 FPU architecture (FPv4-SP, the `-mfpu=fpv4-sp-d16` flag) | The same manual, s7.1 About the FPU, p.7-2 |
 | RP2040 and Pico | RP2040 Datasheet Release 13; Raspberry Pi Pico Datasheet Release 22 |
 | nRF52840, nRF52832, nRF52833 | Product Specification v1.11 (PDF), v1.9 and v1.7 (HTML editions) |
 | ATSAMD21G18A, ATSAMD51J19A | SAM D21/DA1 Family Data Sheet DS40001882L; SAM D5x/E5x Family Data Sheet DS60001507N |
