@@ -4,6 +4,7 @@
     mcu-ruleout memory --target rp2040-pico kernel.c --entry fir_f32 [--cflags "-O2"]
     mcu-ruleout timing --target nrf52840 kernel.c bench.c --entry bench --measure kernel --deadline 100us
     mcu-ruleout memory --target nrf52840 --elf app.elf [--entry main]
+    mcu-ruleout new my_kernel            (writes my_kernel.c: a starter kernel and harness)
     mcu-ruleout targets | examples | doctor | ui
 
 Exit codes: 0 = NOT RULED OUT (for a shortlist: at least one target is left), 3 = RULED OUT
@@ -299,6 +300,17 @@ def cmd_examples(args) -> int:
     return 0
 
 
+def cmd_new(args) -> int:
+    from . import scaffold
+
+    path = scaffold.write(args.name, Path(args.output) if args.output else None, args.force)
+    print(f"Wrote {path}: a starter kernel `{args.name}` with static buffers and a harness `bench_{args.name}`.\n"
+          f"Try it:\n  mcu-ruleout shortlist {path} --entry bench_{args.name} --measure {args.name} --deadline 100us\n"
+          "Then replace the kernel's body with your code. The comment at the top of the file lists the rules "
+          "that keep a verdict meaningful.")
+    return 0
+
+
 def cmd_doctor(args) -> int:
     """Check the installation: toolchain, emulator, and one small build and trace per core."""
     from importlib.metadata import PackageNotFoundError, version
@@ -465,6 +477,12 @@ def main(argv: list[str] | None = None) -> int:
     e.add_argument("name", nargs="?", help="example to print")
     e.set_defaults(func=cmd_examples)
 
+    n = sub.add_parser("new", help="write a starter kernel and harness to begin your own check from")
+    n.add_argument("name", help="name of your kernel function, e.g. my_filter")
+    n.add_argument("-o", "--output", help="file or folder to write to (default: NAME.c here)")
+    n.add_argument("--force", action="store_true", help="replace the file if it exists")
+    n.set_defaults(func=cmd_new)
+
     dr = sub.add_parser("doctor", help="check that the toolchain and emulator are installed and working")
     dr.add_argument("--toolchain", help="arm-none-eabi bin directory")
     dr.set_defaults(func=cmd_doctor)
@@ -486,7 +504,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"error: {e.args[0] if e.args else e}", file=sys.stderr)
         return EXIT_ERROR
     except (TargetSpecError, ToolchainNotFound, RuntimeError, ValueError, OSError) as e:
-        print(f"error: {e}", file=sys.stderr)
+        print(f"error: {e}", file=sys.stderr)  # FileExistsError is an OSError
         return EXIT_ERROR
 
 

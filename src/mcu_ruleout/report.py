@@ -194,12 +194,18 @@ def _timing_core_json(res: T.TimingResult) -> dict:
     }
 
 
+def _signed32(value: int | None) -> int | None:
+    """r0 as a C `int`, so a harness that returns -1 reads as -1."""
+    return None if value is None else value - (1 << 32) if value >= 1 << 31 else value
+
+
 def timing_json(res: T.TimingResult, built: str, call_args: tuple[int, ...], vers: dict) -> dict:
     """Machine-readable timing result, shared by `timing --json` and the web UI."""
     trace, target, cost = res.trace, res.target, res.cost
     return {
         **_timing_core_json(res),
         "instructions": trace.instructions, "clock_where": target.max_clock_hz.where,
+        "entry_return_value": _signed32(trace.return_value),
         "target": _target_json(target),
         "inputs": {"built": built, "entry": trace.entry, "measure": trace.measure, "args": list(call_args)},
         "cycle_table": res.model_version, "versions": vers,
@@ -234,6 +240,9 @@ def print_timing(res: T.TimingResult, built: str, call_args: tuple[int, ...], ve
                 print(f"  {b.label:<32} {b.cost.trace.instructions:>12,} {b.cost.cycles:>13,}{mark}")
             else:
                 print(f"  {b.label:<32} not traced: {short_error(b.error)}")
+    if trace.return_value is not None:
+        print(f"Entry returned:         {_signed32(trace.return_value):>14,}   (the harness's return value, "
+              "from the fastest build)")
     print(f"\nExecuted instructions:  {trace.instructions:>14,}")
     print(f"Cycle lower bound:      {res.cycles_lb:>14,}" + (f"   (from {res.label})" if len(res.builds) > 1 else ""))
     print(f"Clock (maximum rated):  {res.clock_hz:>14,} Hz   ({target.max_clock_hz.where})")
