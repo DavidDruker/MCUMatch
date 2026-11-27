@@ -640,3 +640,4 @@ Add one line per finished task.
 | 2026-11-27 | 6.11, 7.1 (draft) | README for launch; decisiveness protocol as a draft | `c5c2a5e` |
 | 2026-11-27 | (finding) | A timing rule-out that rests on only some of the builds now carries a caution and a `!` mark | `825c74b` |
 | 2026-11-27 | 7.3, 7.6 | Kernel zoo run and report; readiness review (not ready: 1 of 7) | `c31a8c6` |
+| 2026-11-27 | 1.6 (read by an agent, box left open) | Arm's Errata 01 applied: MLA and MLS are 1 cycle, not 2; Cortex-M4F cycle table version 2. FPv4-SP cited from the manual | `f392967` |
