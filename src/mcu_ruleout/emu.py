@@ -90,6 +90,7 @@ class Trace:
     unicorn_model: str = ""
     functions: list[tuple[int, int, str]] = field(default_factory=list)  # (address, size, name), sorted
     return_value: int | None = None  # r0 when the entry call returned
+    memory: dict[str, bytes] = field(default_factory=dict)  # data objects read back after the run, by name
 
     @property
     def instructions(self) -> int:
@@ -104,6 +105,13 @@ def _functions(elf: ELFFile) -> list[tuple[int, int, str]]:
     funcs = [(s["st_value"] & ~1, s["st_size"], s.name) for s in (symtab.iter_symbols() if symtab else [])
              if s["st_info"]["type"] == "STT_FUNC" and s["st_size"] > 0]
     return sorted(funcs)
+
+
+def _objects(elf: ELFFile) -> dict[str, tuple[int, int]]:
+    """Data objects by name: (address, size)."""
+    symtab = elf.get_section_by_name(".symtab")
+    return {s.name: (s["st_value"], s["st_size"]) for s in (symtab.iter_symbols() if symtab else [])
+            if s["st_info"]["type"] == "STT_OBJECT" and s["st_size"] > 0}
 
 
 def _owner(funcs: list[tuple[int, int, str]], addr: int) -> str:
@@ -124,7 +132,9 @@ def _free_place(pages: dict[int, int], candidates: tuple[int, ...], below: int) 
 
 
 def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None = None,
-              args: tuple[int, ...] = (), max_insns: int = DEFAULT_MAX_INSNS) -> Trace:
+              args: tuple[int, ...] = (), max_insns: int = DEFAULT_MAX_INSNS, read: tuple[str, ...] = ()) -> Trace:
+    """Run `entry` and record what executes inside `measure`. `read` names data objects whose
+    contents after the run are returned in `Trace.memory`."""
     try:
         from unicorn import (UC_ARCH_ARM, UC_HOOK_CODE, UC_HOOK_MEM_PROT, UC_HOOK_MEM_UNMAPPED, UC_MEM_FETCH_PROT,
                              UC_MEM_FETCH_UNMAPPED, UC_MEM_READ_PROT, UC_MEM_READ_UNMAPPED, UC_MEM_WRITE_PROT,
@@ -150,6 +160,7 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
     with Path(elf_path).open("rb") as f:
         elf = ELFFile(f)
         funcs = _functions(elf)
+        objects = _objects(elf) if read else {}
         sections = []
         for sec in elf.iter_sections():
             flags = sec["sh_flags"]
@@ -287,6 +298,10 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
     if not trace.hits:
         raise EmulationError(_never_executed(measure))
     trace.return_value = mu.reg_read(A.UC_ARM_REG_R0)
+    for name in read:
+        if name not in objects:
+            raise EmulationError(f"data object {name!r} not found in {Path(elf_path).name}")
+        trace.memory[name] = bytes(mu.mem_read(*objects[name]))
     for (addr, _), n in trace.hits.items():
         trace.by_function[_owner(funcs, addr)] += n
     return trace

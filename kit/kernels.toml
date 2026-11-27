@@ -1,0 +1,114 @@
+# The kernel set for hardware measurements (roadmap task 4.6, docs/MEASURE.md).
+#
+# The six built-in examples at two sizes each, and the CMSIS-DSP FIR. One firmware image is built
+# per kernel. The timed function is the harness entry, which is also what the tool traces.
+#
+# The set is fixed by the pre-registration (validation/V2_PREREGISTRATION.md) before the first
+# measurement. Do not add, drop or resize a kernel after results have been seen.
+#
+#   example    a built-in example (src/mcu_ruleout/examples/), or
+#   source     a source file relative to the repository root
+#   entry      the harness function that is timed (taken from the example when left out)
+#   defines    the sizes
+#   kernel     the dataset's kernel family; data_type and size are the dataset's columns
+#   needs      an external checkout this kernel cannot be built without
+#
+# Every image is built at -O2 -std=c11 with the target spec's own flags.
+#
+# Sizes are chosen so that the Cortex-M0+ counter (SysTick, 2^24 cycles) has room. The tool's own
+# bound for the largest kernel on that core is about 16 % of the range, so a run would have to
+# take more than six times its bound to wrap. A run that does wrap is an error, not a number.
+
+[fir_f32-64x16]
+example = "fir_f32"
+defines = ["NOUT=64", "NTAPS=16"]
+kernel = "fir"
+data_type = "f32"
+size = "64 outputs, 16 taps"
+
+[fir_f32-256x32]
+example = "fir_f32"
+defines = ["NOUT=256", "NTAPS=32"]
+kernel = "fir"
+data_type = "f32"
+size = "256 outputs, 32 taps"
+
+[fir_q15-64x16]
+example = "fir_q15"
+defines = ["NOUT=64", "NTAPS=16"]
+kernel = "fir"
+data_type = "q15"
+size = "64 outputs, 16 taps"
+
+[fir_q15-256x32]
+example = "fir_q15"
+defines = ["NOUT=256", "NTAPS=32"]
+kernel = "fir"
+data_type = "q15"
+size = "256 outputs, 32 taps"
+
+[biquad_f32-256x2]
+example = "biquad_f32"
+defines = ["NSAMPLES=256", "NSTAGES=2"]
+kernel = "biquad"
+data_type = "f32"
+size = "256 samples, 2 stages"
+
+[biquad_f32-512x4]
+example = "biquad_f32"
+defines = ["NSAMPLES=512", "NSTAGES=4"]
+kernel = "biquad"
+data_type = "f32"
+size = "512 samples, 4 stages"
+
+[pid_f32-100]
+example = "pid_f32"
+defines = ["NSTEPS=100"]
+kernel = "pid"
+data_type = "f32"
+size = "100 steps"
+
+[pid_f32-1000]
+example = "pid_f32"
+defines = ["NSTEPS=1000"]
+kernel = "pid"
+data_type = "f32"
+size = "1000 steps"
+
+[fft_f32-64]
+example = "fft_f32"
+defines = ["LOG2N=6"]
+kernel = "fft"
+data_type = "f32"
+size = "64-point complex"
+
+[fft_f32-256]
+example = "fft_f32"
+defines = ["LOG2N=8"]
+kernel = "fft"
+data_type = "f32"
+size = "256-point complex"
+
+[matmul_f32-8x8]
+example = "matmul_f32"
+defines = ["N=8"]
+kernel = "matmul"
+data_type = "f32"
+size = "8x8"
+
+[matmul_f32-16x16]
+example = "matmul_f32"
+defines = ["N=16"]
+kernel = "matmul"
+data_type = "f32"
+size = "16x16"
+
+[arm_fir_f32-29x32]
+source = "kernels/cmsis/bench_arm_fir_f32.c"
+entry = "bench_arm_fir_f32"
+defines = ["NTAPS=29", "BLOCK=32", "ARM_MATH_LOOPUNROLL"]
+kernel = "fir"
+data_type = "f32"
+size = "29 taps, block 32"
+library = "CMSIS-DSP"
+needs = "CMSIS-DSP"

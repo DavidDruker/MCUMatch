@@ -7,8 +7,12 @@
     mcu-ruleout new my_kernel            (writes my_kernel.c: a starter kernel and harness)
     mcu-ruleout targets | examples | doctor | ui
 
+    mcu-ruleout measurement import --elf image.elf --mailbox dump.bin --target nrf52840 --out measurements
+    mcu-ruleout compare --elf image.elf --measurement measurements/ID.json
+
 Exit codes: 0 = NOT RULED OUT (for a shortlist: at least one target is left), 3 = RULED OUT
-(for a shortlist: every target), 1 = error, 2 = bad arguments.
+(for a shortlist: every target), 1 = error, 2 = bad arguments. For `compare`: 0 = the bound is at
+most the measurement, 4 = VIOLATION, 5 = within the overhead uncertainty.
 """
 from __future__ import annotations
 
@@ -26,6 +30,7 @@ from .targets import SUPPORTED_CORES, Target, TargetSpecError, builtin_target_pa
 from .toolchain import ToolchainNotFound, find_toolchain
 
 EXIT_NOT_RULED_OUT, EXIT_ERROR, EXIT_RULED_OUT = 0, 1, 3
+EXIT_VIOLATION, EXIT_WITHIN_OVERHEAD = 4, 5  # `compare` only
 
 
 def _elf_entry(elf: Path, requested: list[str]) -> str | None:
@@ -311,6 +316,69 @@ def cmd_new(args) -> int:
     return 0
 
 
+def cmd_measurement(args) -> int:
+    """Turn a kit result read off a board into a measurement file and a dataset row."""
+    from . import measure as K
+
+    if bool(args.mailbox) == bool(args.text):
+        raise SystemExit("give either --mailbox (a dump of kit_mailbox) or --text (the captured serial output)")
+    result = (K.parse_mailbox(Path(args.mailbox).read_bytes()) if args.mailbox
+              else K.parse_text(Path(args.text).read_text(encoding="utf-8", errors="replace")))
+    target = find_target(args.target)
+    kernels = K.load_kernels(Path(args.kernels))
+    draft = K.build_measurement(result, Path(args.elf), target, kernels, args.mcu, args.measured_by or "")
+    prefix = draft["id"].rsplit("-", 1)[0]
+    m = K.build_measurement(result, Path(args.elf), target, kernels, args.mcu, args.measured_by or "",
+                            number=K.next_number(Path(args.out), prefix))
+    path = K.write_measurement(m, Path(args.out), Path(args.dataset) if args.dataset else None)
+    row = K.dataset_row(m)
+    print(f"Measurement written to {path}")
+    print(f"  {m['bench']} on {m['board']}: minimum {m['raw_min']:,} cycles over {len(m['runs'])} runs "
+          f"(overhead minimum {m['overhead_min']:,}), {m['counter']} at {m['core_clock_hz']:,} Hz")
+    print(f"  dataset row: {row['config_completeness']}" + (f"; missing: {row['missing']}" if row["missing"] else ""))
+    if m["counter"] == "made_up":
+        print("  This result is from the emulated port. Its numbers are made up and it is not a measurement.")
+    if args.dataset:
+        print(f"  row and source added to {args.dataset}")
+    print(f"Next: mcu-ruleout compare --elf {args.elf} --measurement {path}")
+    return 0
+
+
+def cmd_compare(args) -> int:
+    """Set a kit measurement against the cycle lower bound of the same ELF."""
+    from . import measure as K
+
+    m = json.loads(Path(args.measurement).read_text(encoding="utf-8"))
+    c = K.compare(Path(args.elf), m)
+    code = {K.OK: 0, K.VIOLATION: EXIT_VIOLATION, K.WITHIN_OVERHEAD: EXIT_WITHIN_OVERHEAD}[c.outcome]
+    if args.json:
+        print(json.dumps(c.as_json(), indent=2))
+        return code
+    print(f"mcu-ruleout {__version__}: a measurement against the bound for the same ELF")
+    print(f"Measurement: {c.measurement_id}")
+    print(f"             {m['board']}, {m['counter']} at {m['core_clock_hz']:,} Hz, flash wait states "
+          f"{m['flash_wait_states']}, {m['cache_accel'] or 'cache state not stated'}")
+    print(f"ELF:         {Path(args.elf).name}, build id {m['elf']['build_id']} (matches the measurement)")
+    print(f"Timed:       {c.entry}   ({m['bench']})")
+    print(f"             cycle table: {c.model_version}")
+    print(f"\nCycle lower bound:        {c.bound:>14,}")
+    print(f"Measured, raw minimum:    {c.raw:>14,}   ({len(m['runs'])} runs, from {min(m['runs']):,} to {max(m['runs']):,})")
+    print(f"Overhead, minimum:        {c.overhead:>14,}   (empty function; its own bound is {c.bound_empty:,})")
+    print(f"Measured, corrected:      {c.corrected:>14,}   (raw - overhead + bound of the empty function)")
+    print(f"Measured / bound:         {c.ratio_raw:>14.3f}   raw; {c.ratio_corrected:.3f} corrected")
+    print(f"\nRESULT: {c.outcome}")
+    print("  " + {
+        K.OK: "The bound is at most the corrected measurement. That holds for this run only.",
+        K.WITHIN_OVERHEAD: "The bound is above the corrected measurement but not above the raw one. The gap is "
+                           "smaller than the uncertainty of the overhead correction, so this run decides nothing.",
+        K.VIOLATION: "The bound is above a measurement of the same binary. The lower-bound claim is false for this "
+                     "run. Keep the row, and follow the pre-registration: investigate, report, never drop it.",
+    }[c.outcome])
+    if not c.hardware:
+        print("  This measurement is from the emulated port. Its numbers are made up; nothing is shown about hardware.")
+    return code
+
+
 def cmd_doctor(args) -> int:
     """Check the installation: toolchain, emulator, and one small build and trace per core."""
     from importlib.metadata import PackageNotFoundError, version
@@ -482,6 +550,26 @@ def main(argv: list[str] | None = None) -> int:
     n.add_argument("-o", "--output", help="file or folder to write to (default: NAME.c here)")
     n.add_argument("--force", action="store_true", help="replace the file if it exists")
     n.set_defaults(func=cmd_new)
+
+    ms = sub.add_parser("measurement", help="import a result from the measurement kit (docs/MEASURE.md)")
+    ms_sub = ms.add_subparsers(dest="measurement_cmd", required=True)
+    mi = ms_sub.add_parser("import", help="turn a result read off a board into a measurement file and a dataset row")
+    mi.add_argument("--elf", required=True, help="the exact firmware ELF that was flashed")
+    mi.add_argument("--mailbox", help="a binary dump of the `kit_mailbox` structure")
+    mi.add_argument("--text", help="a capture of the `KIT1 ...` lines from the serial port")
+    mi.add_argument("--target", required=True, help="target id or .toml spec of the part on the board")
+    mi.add_argument("--mcu", help="the exact part number printed on the chip (default: the target id)")
+    mi.add_argument("--measured-by", help="who measured it, for the dataset's source row")
+    mi.add_argument("--kernels", default="kit/kernels.toml", help="the kernel set (default: kit/kernels.toml)")
+    mi.add_argument("--out", required=True, help="folder for the measurement file")
+    mi.add_argument("--dataset", help="also add the row and its source to this dataset folder")
+    mi.set_defaults(func=cmd_measurement)
+
+    cp = sub.add_parser("compare", help="set a kit measurement against the bound for the same ELF")
+    cp.add_argument("--elf", required=True, help="the exact firmware ELF the measurement was taken from")
+    cp.add_argument("--measurement", required=True, help="measurement file from `measurement import`")
+    cp.add_argument("--json", action="store_true", help="machine-readable output")
+    cp.set_defaults(func=cmd_compare)
 
     dr = sub.add_parser("doctor", help="check that the toolchain and emulator are installed and working")
     dr.add_argument("--toolchain", help="arm-none-eabi bin directory")

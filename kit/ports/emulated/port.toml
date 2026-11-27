@@ -1,0 +1,8 @@
+# The emulated port: runs in the emulator, measures nothing. For tests of the kit and the host side.
+name = "emulated"
+hardware = false
+# Any target spec can be given with --target; this is the default.
+target = "nrf52840"
+sources = ["port.c"]
+link_script = "emulated.ld"
+defines = ["KIT_COUNTER_MADE_UP_"]

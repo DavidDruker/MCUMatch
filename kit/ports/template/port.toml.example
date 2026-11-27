@@ -1,0 +1,17 @@
+# Rename to port.toml once port.c builds. kit/build.py lists every folder that has a port.toml.
+name = "TODO-board"
+hardware = true
+# The target spec of the part on the board. It supplies the core and the compiler flags.
+target = "TODO-target-id"
+# port.c, plus the startup file and anything else the board needs, relative to this folder.
+sources = ["port.c", "startup.c"]
+# The link script must keep the build-id note and name its address, exactly as
+# kit/ports/emulated/emulated.ld does:
+#
+#   .note.gnu.build-id : {
+#     __kit_build_id = .;
+#     KEEP(*(.note.gnu.build-id))
+#   } > FLASH
+link_script = "TODO.ld"
+defines = []
+cflags = []
