@@ -176,10 +176,12 @@ version 2 of the Cortex-M4F cycle table:
 | `fft_f32-256` | 66,017 | 1,438,757 | 8.6 % |
 | `matmul_f32-8x8` | 7,155 | 180,920 | 1.1 % |
 | `matmul_f32-16x16` | 48,819 | 1,265,177 | 7.5 % |
+| `arm_fir_f32-29x32` (CMSIS-DSP v1.18.0) | 5,081 | 221,072 | 1.3 % |
 
 The sizes were chosen with the last column in mind. On a Cortex-M0+ a run would have to take more
 than six times its bound to wrap the counter, and a run that does wrap is reported as an error.
-The CMSIS-DSP FIR is not in the table because it has not been built yet (no checkout was available).
+The CMSIS-DSP row is from the CI job that builds that kernel with the kit; the others were computed on
+the development machine.
 
 ## What a board port provides
 

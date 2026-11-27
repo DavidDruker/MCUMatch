@@ -643,3 +643,7 @@ Add one line per finished task.
 | 2026-11-27 | (finding) | A timing rule-out that rests on only some of the builds now carries a caution and a `!` mark | `825c74b` |
 | 2026-11-27 | 7.3, 7.6 | Kernel zoo run and report; readiness review (not ready: 1 of 7) | `c31a8c6` |
 | 2026-11-27 | 1.6 (read by an agent, box left open) | Arm's Errata 01 applied: MLA and MLS are 1 cycle, not 2; Cortex-M4F cycle table version 2. FPv4-SP cited from the manual | `f392967` |
+| 2026-11-27 | 6.1 | CI runs on every branch push and is green on Linux, Windows and macOS (`macos-latest`); a failed test step leaves its failures on the run's summary | `6c248b5`, `5d8daf6` |
+| 2026-11-27 | 3.5 | The CMSIS-DSP recipe runs in CI against v1.18.0 and passes | `6c248b5` |
+| 2026-11-27 | (bug) | `--cflags -O3` was rejected by the argument parser; only values with a space worked. Found by the recipe's first real run | `5d8daf6` |
+| 2026-11-27 | 6.13 | `Dockerfile` with the pinned toolchain; CI builds it and runs a check and the dry run inside it. Not published | `5d8daf6` |
