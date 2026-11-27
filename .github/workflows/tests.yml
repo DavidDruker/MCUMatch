@@ -2,11 +2,15 @@ name: tests
 
 on:
   push:
-    branches: [main]
   pull_request:
 
 permissions:
   contents: read
+
+# A newer push to the same branch replaces the run that is still going.
+concurrency:
+  group: tests-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
@@ -50,6 +54,62 @@ jobs:
       - name: Dry run of the validation runner on made-up rows
         if: matrix.os == 'ubuntu-latest' && matrix.python == '3.14'
         run: python validation/dry_run_v2.py
+
+  cmsis-dsp:
+    # docs/CMSIS_DSP.md, run for real. CMSIS-DSP and the CMSIS Core headers are checked out at
+    # pinned commits for this job only. Nothing from them is copied into this repository.
+    name: CMSIS-DSP recipe
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check out CMSIS-DSP v1.18.0
+        uses: actions/checkout@v4
+        with:
+          repository: ARM-software/CMSIS-DSP
+          ref: 4b6f26593e9d3b24a9bc93b3646a3a859238eae2
+          path: third_party/CMSIS-DSP
+
+      - name: Check out CMSIS_6 v6.4.0 (for the Core headers)
+        uses: actions/checkout@v4
+        with:
+          repository: ARM-software/CMSIS_6
+          ref: af1b110e46a1720349f6f125e386e126767699bd
+          path: third_party/CMSIS_6
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: ./.github/actions/arm-toolchain
+
+      - name: Install the package with the emulator extra
+        run: python -m pip install -e ".[emu]"
+
+      - name: Run the recipe's tests, and fail if any of them is skipped
+        env:
+          CMSIS_DSP_PATH: ${{ github.workspace }}/third_party/CMSIS-DSP
+          CMSIS_CORE_INCLUDE: ${{ github.workspace }}/third_party/CMSIS_6/CMSIS/Core/Include
+        run: |
+          set -o pipefail
+          python -m unittest tests.test_cmsis_dsp -v 2>&1 | tee cmsis-test.log
+          if grep -q "skipped" cmsis-test.log; then
+            echo "a CMSIS-DSP test was skipped, so the recipe was not verified" >&2
+            exit 1
+          fi
+
+      - name: The shortlist from the document, for the record
+        env:
+          DSP: ${{ github.workspace }}/third_party/CMSIS-DSP
+          CORE: ${{ github.workspace }}/third_party/CMSIS_6/CMSIS/Core/Include
+        run: |
+          python -m mcu_ruleout shortlist kernels/cmsis/bench_arm_fir_f32.c \
+            "$DSP/Source/FilteringFunctions/arm_fir_f32.c" "$DSP/Source/FilteringFunctions/arm_fir_init_f32.c" \
+            -I "$DSP/Include" -I "$DSP/PrivateInclude" -I "$CORE" -D ARM_MATH_LOOPUNROLL --cflags "-O3" \
+            --entry bench_arm_fir_f32 --measure fir_block --deadline 100us || test $? -eq 3
 
   package:
     name: build the package and use it from a clean install

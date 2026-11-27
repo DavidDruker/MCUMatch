@@ -46,7 +46,8 @@ class TestReadmeStatusBlock(unittest.TestCase):
         self.assertIn(results["date"], row)
 
 
-SKIP_DIRS = {".venv", ".git", "build", "node_modules", "__pycache__", "packs"}
+# Folders that hold other people's files or build output, not this project's documents.
+SKIP_DIRS = {".venv", ".git", "build", "node_modules", "__pycache__", "packs", "third_party", ".cache", "dist"}
 LINK = re.compile(r"\[[^\]]*\]\(([^)\s]+)\)")
 
 

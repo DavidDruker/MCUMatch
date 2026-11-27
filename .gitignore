@@ -7,3 +7,6 @@ __pycache__/
 packs/
 # Third-party code fetched by commit for validation recipes; never committed
 validation/.cache/
+# Checkouts of other projects (CMSIS-DSP for docs/CMSIS_DSP.md); never committed
+third_party/
+dist/

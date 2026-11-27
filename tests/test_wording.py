@@ -17,7 +17,8 @@ PACKAGE = REPO / "src" / "mcu_ruleout"
 # The roadmap quotes the old claim in order to describe the fix, so it is not scanned.
 NOT_SCANNED = {REPO / "docs" / "ROADMAP.md"}
 CLAIM = re.compile(r"only (be|run) slower|(cannot|can't|never) be faster", re.I)
-SKIP_DIRS = {".venv", ".git", "build", "node_modules", "__pycache__"}
+# Folders that hold other people's files or build output, not this project's documents.
+SKIP_DIRS = {".venv", ".git", "build", "node_modules", "__pycache__", "packs", "third_party", ".cache", "dist"}
 
 
 def sentences(text: str) -> list[str]:
