@@ -43,7 +43,8 @@ def costed(cycles, own=None):
 def sized(flash, ram, own_flash=None, own_ram=None):
     """A stand-in for a memory measurement with the given needs."""
     return types.SimpleNamespace(ok=True, label="build", flash=flash, ram=ram, user_flash=own_flash, user_ram=own_ram,
-                                 origins=None if own_flash is None else object())
+                                 origins=None if own_flash is None else object(),
+                                 sizes=types.SimpleNamespace(ram_static_bytes=ram))
 
 
 class TestPercent(unittest.TestCase):

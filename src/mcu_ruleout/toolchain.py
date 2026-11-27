@@ -28,16 +28,16 @@ class Toolchain:
         return out.stdout.splitlines()[0].strip()
 
 
-def _candidates(explicit: str | os.PathLike | None) -> list[Path]:
+DOWNLOAD_URL = "https://developer.arm.com/downloads/-/arm-gnu-toolchain-downloads"
+
+
+def _searched() -> list[Path]:
+    """Where a toolchain is looked for when none was named: PATH, then Arm's Windows installer folder."""
     found: list[Path] = []
-    if explicit:
-        found.append(Path(explicit))
-    if os.environ.get("MCU_RULEOUT_TOOLCHAIN"):
-        found.append(Path(os.environ["MCU_RULEOUT_TOOLCHAIN"]))
     on_path = shutil.which("arm-none-eabi-gcc")
     if on_path:
         found.append(Path(on_path).parent)
-    if os.name == "nt":  # default folder of Arm's Windows installer
+    if os.name == "nt":
         for base in (os.environ.get("ProgramFiles(x86)"), os.environ.get("ProgramFiles")):
             if base:
                 found += sorted(Path(base).glob("Arm GNU Toolchain arm-none-eabi/*/bin"), reverse=True)
@@ -45,12 +45,24 @@ def _candidates(explicit: str | os.PathLike | None) -> list[Path]:
 
 
 def find_toolchain(explicit: str | os.PathLike | None = None) -> Toolchain:
-    """Order: explicit dir, $MCU_RULEOUT_TOOLCHAIN, PATH, Arm installer default (Windows)."""
-    for cand in _candidates(explicit):
+    """Order: explicit dir, $MCU_RULEOUT_TOOLCHAIN, PATH, Arm installer default (Windows).
+
+    A folder you name must hold the compiler. Falling back to another one would silently change
+    the binaries, and every bound is about the binaries."""
+    for named, how in ((explicit, "--toolchain"), (os.environ.get("MCU_RULEOUT_TOOLCHAIN"), "MCU_RULEOUT_TOOLCHAIN")):
+        if named:
+            tc = Toolchain(Path(named))
+            if tc.gcc.is_file():
+                return tc
+            raise ToolchainNotFound(
+                f"{how} names {named}, but there is no {tc.gcc.name} in it. Fix: give the toolchain's `bin` "
+                "folder, the one that holds arm-none-eabi-gcc.")
+    for cand in _searched():
         tc = Toolchain(cand)
         if tc.gcc.is_file():
             return tc
     raise ToolchainNotFound(
-        "arm-none-eabi-gcc not found. Install the Arm GNU Toolchain, put it on PATH, "
-        "set MCU_RULEOUT_TOOLCHAIN, or pass --toolchain <bin dir>."
+        "arm-none-eabi-gcc not found. Fix: install the free Arm GNU Toolchain (arm-none-eabi) from "
+        f"{DOWNLOAD_URL} and put its `bin` folder on PATH, or set MCU_RULEOUT_TOOLCHAIN, or pass "
+        "--toolchain <bin folder>. Then run `mcu-ruleout doctor` to check."
     )

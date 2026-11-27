@@ -5,6 +5,10 @@ with integer arguments per the AAPCS, and stops when it returns. Counting starts
 first reaches `measure` (default: the entry itself) and stops when that call returns, so setup
 code in a harness function is not counted.
 
+Only the ELF's own sections and a stack exist. Code and read-only data are mapped read-only, so
+a write through a null pointer is caught instead of quietly overwriting the program. There are
+no peripherals: touching one is an error, with a message that says what to change.
+
 Unicorn is an optional dependency (`pip install mcu-ruleout[emu]`).
 """
 from __future__ import annotations
@@ -18,7 +22,7 @@ from pathlib import Path
 from elftools.elf.constants import SH_FLAGS
 from elftools.elf.elffile import ELFFile
 
-from .cycles import CycleModel, Decoded
+from .cycles import UNSUPPORTED, CycleModel, Decoded
 from .cycles import condition_passes as model_condition
 
 PAGE = 0x1000
@@ -30,7 +34,46 @@ DEFAULT_MAX_INSNS = 50_000_000
 
 
 class EmulationError(RuntimeError):
-    pass
+    """A run that produced no trace. The message is one line: what happened, then `Fix:` and what to do."""
+
+
+FIX = " Fix: "
+FIX_HARNESS = ("declare the buffers as static arrays in a harness function and call the kernel from it "
+               "(`mcu-ruleout new NAME` writes a starting point).")
+
+
+def short_error(message: str) -> str:
+    """The part of an error before its fix, for tables where one build's failure is a single cell."""
+    return message.split(FIX)[0]
+
+
+def _never_executed(measure: str) -> str:
+    return (f"{measure} was never executed (the compiler may have inlined or cloned it).{FIX}mark it "
+            "__attribute__((noinline, noclone)), or leave out --measure to count the whole entry function.")
+
+
+def _not_answered(owner: str, text: str, addr: int) -> str:
+    return (f"{owner} executed `{text}` at {addr:#x}. Supervisor calls, breakpoints and sleep instructions need an "
+            f"operating system, a debugger or an interrupt, none of which exist here, and Arm's table gives them no "
+            f"usable cycle count.{FIX}keep RTOS calls, semihosting and sleep out of the measured path; time only "
+            "the kernel with --measure.")
+
+
+def _bad_access(kind: str, addr: int, owner: str, pc: int) -> str:
+    """One message per kind of memory fault. `kind` is Unicorn's name for it."""
+    where = f"{owner} (pc={pc:#x})"
+    if kind == "write_prot":
+        return (f"{where} wrote to address {addr:#010x}, which is read-only program memory. The usual cause is a "
+                f"null or unset pointer: the emulator passes 0 for every argument you do not give.{FIX}{FIX_HARNESS}")
+    if kind in ("fetch_unmapped", "fetch_prot"):
+        return (f"execution jumped to {addr:#010x}, where there is no code (last function: {owner}). The usual "
+                f"cause is a function pointer or a vector that startup code or a driver would have set.{FIX}"
+                "call the kernel directly from the harness, and set any callback it uses before the call.")
+    verb = "wrote to" if kind.startswith("write") else "read from"
+    return (f"{where} {verb} address {addr:#010x}, which is not part of the program. Only the code and data in "
+            f"the ELF exist here; there are no peripherals and no memory beyond the program's own.{FIX}keep "
+            f"hardware access out of the measured path (set registers up before the kernel, or stub the driver "
+            f"call), and {FIX_HARNESS}")
 
 
 @dataclass
@@ -70,10 +113,17 @@ def _owner(funcs: list[tuple[int, int, str]], addr: int) -> str:
 def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None = None,
               args: tuple[int, ...] = (), max_insns: int = DEFAULT_MAX_INSNS) -> Trace:
     try:
-        from unicorn import UC_ARCH_ARM, UC_HOOK_CODE, UC_MODE_THUMB, Uc, UcError
+        from unicorn import (UC_ARCH_ARM, UC_HOOK_CODE, UC_HOOK_MEM_PROT, UC_HOOK_MEM_UNMAPPED, UC_MEM_FETCH_PROT,
+                             UC_MEM_FETCH_UNMAPPED, UC_MEM_READ_PROT, UC_MEM_READ_UNMAPPED, UC_MEM_WRITE_PROT,
+                             UC_MEM_WRITE_UNMAPPED, UC_MODE_THUMB, UC_PROT_EXEC, UC_PROT_READ, UC_PROT_WRITE, Uc,
+                             UcError)
         from unicorn import arm_const as A
     except ImportError as e:  # pragma: no cover
-        raise EmulationError("the timing check needs Unicorn: pip install mcu-ruleout[emu]") from e
+        raise EmulationError(f"the timing check needs Unicorn, which is not installed.{FIX}"
+                             'pip install "mcu-ruleout[emu]"') from e
+    _FAULT_KINDS = {UC_MEM_READ_UNMAPPED: "read_unmapped", UC_MEM_WRITE_UNMAPPED: "write_unmapped",
+                    UC_MEM_FETCH_UNMAPPED: "fetch_unmapped", UC_MEM_WRITE_PROT: "write_prot",
+                    UC_MEM_READ_PROT: "read_unmapped", UC_MEM_FETCH_PROT: "fetch_prot"}
 
     model = CycleModel(core)
     measure = measure or entry
@@ -87,33 +137,47 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
     with Path(elf_path).open("rb") as f:
         elf = ELFFile(f)
         funcs = _functions(elf)
-        sections = [(s["sh_addr"], s["sh_size"], None if s["sh_type"] == "SHT_NOBITS" else s.data())
-                    for s in elf.iter_sections() if s["sh_flags"] & SH_FLAGS.SHF_ALLOC and s["sh_size"]]
+        sections = []
+        for sec in elf.iter_sections():
+            flags = sec["sh_flags"]
+            if flags & SH_FLAGS.SHF_ALLOC and sec["sh_size"]:
+                prot = (UC_PROT_READ | (UC_PROT_WRITE if flags & SH_FLAGS.SHF_WRITE else 0)
+                        | (UC_PROT_EXEC if flags & SH_FLAGS.SHF_EXECINSTR else 0))
+                sections.append((sec["sh_addr"], sec["sh_size"],
+                                 None if sec["sh_type"] == "SHT_NOBITS" else sec.data(), prot))
     addr_of = {name: addr for addr, _, name in funcs}
     for sym in (entry, measure):
         if sym not in addr_of:
-            raise EmulationError(f"function {sym!r} not found in {elf_path}")
+            raise EmulationError(
+                f"function {sym!r} not found in {Path(elf_path).name}.{FIX}check the spelling of --entry and --measure. A "
+                "`static` function that the compiler inlined has no symbol: make it non-static and mark it "
+                "__attribute__((noinline, noclone)).")
 
-    pages: set[int] = set()
-    for addr, size, _ in sections:
-        pages.update(range(addr // PAGE, (addr + size - 1) // PAGE + 1))
-    pages.update(range((STACK_TOP - STACK_SIZE) // PAGE, STACK_TOP // PAGE))
-    pages.add(SENTINEL // PAGE)
-    run_start = None
-    for p in sorted(pages) + [None]:  # map contiguous runs of pages
-        if run_start is not None and (p is None or p != prev + 1):
-            mu.mem_map(run_start * PAGE, (prev - run_start + 1) * PAGE)
+    # A page takes the union of the permissions of the sections on it, so the protection is never
+    # stricter than the ELF's own section flags.
+    pages: dict[int, int] = {}
+    for addr, size, _, prot in sections:
+        for page in range(addr // PAGE, (addr + size - 1) // PAGE + 1):
+            pages[page] = pages.get(page, 0) | prot
+    for page in range((STACK_TOP - STACK_SIZE) // PAGE, STACK_TOP // PAGE):
+        pages[page] = pages.get(page, 0) | UC_PROT_READ | UC_PROT_WRITE
+    pages[SENTINEL // PAGE] = pages.get(SENTINEL // PAGE, 0) | UC_PROT_READ | UC_PROT_EXEC
+    run_start = prev = None
+    for page in sorted(pages) + [None]:  # map runs of neighbouring pages that share their permissions
+        if run_start is not None and (page is None or page != prev + 1 or pages[page] != pages[run_start]):
+            mu.mem_map(run_start * PAGE, (prev - run_start + 1) * PAGE, pages[run_start])
             run_start = None
-        if p is not None and run_start is None:
-            run_start = p
-        prev = p
-    for addr, _, data in sections:
+        if page is not None and run_start is None:
+            run_start = page
+        prev = page
+    for addr, _, data, _ in sections:
         if data is not None:
-            mu.mem_write(addr, data)
+            mu.mem_write(addr, data)  # loading is not subject to the page permissions
 
     trace = Trace(core, entry, measure, unicorn_model=UNICORN_MODELS[core], functions=funcs)
     measure_addr = addr_of[measure]
-    state = {"active": False, "ret": None, "sp": None, "pending": None, "count": 0, "error": None}
+    state = {"active": False, "ret": None, "sp": None, "pending": None, "count": 0, "error": None,
+             "last": None, "fault": None}
     hits, decoded = trace.hits, trace.decoded
 
     def hook(uc, addr, size, _ud):
@@ -150,8 +214,15 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
                 decoded.setdefault(b.addr, b)
             d = decoded[addr]
         st["count"] += 1
-        if st["count"] > max_insns:
-            st["error"] = f"more than {max_insns:,} instructions; stopped (raise --max-insns if intended)"
+        st["last"] = addr
+        if d.cls == UNSUPPORTED:  # SVC, BKPT, WFI, WFE, UDF: stop before Unicorn takes the exception
+            st["error"] = _not_answered(_owner(funcs, addr), d.text, addr)
+            uc.emu_stop()
+        elif st["count"] > max_insns:
+            st["error"] = (f"more than {max_insns:,} instructions were counted and the run was stopped.{FIX}if the "
+                           "kernel really is that long, raise --max-insns. Otherwise it is probably waiting in a loop "
+                           "for a flag that only an interrupt or a peripheral sets; keep such waits out of the "
+                           "measured path.")
             uc.emu_stop()
         elif d.cond_branch:
             st["pending"] = (addr, addr + size)
@@ -160,7 +231,12 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
         else:
             hits[(addr, None)] += 1
 
+    def fault_hook(uc, access, address, size, value, _ud):
+        state["fault"] = (access, address)
+        return False  # do not map anything in: the run stops with this fault
+
     mu.hook_add(UC_HOOK_CODE, hook)
+    mu.hook_add(UC_HOOK_MEM_UNMAPPED | UC_HOOK_MEM_PROT, fault_hook)
     stack_args = args[4:]
     sp = (STACK_TOP - 4 * len(stack_args)) & ~7
     for i, v in enumerate(stack_args):
@@ -173,8 +249,15 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
         mu.emu_start(addr_of[entry] | 1, SENTINEL)
     except UcError as e:
         pc = mu.reg_read(A.UC_ARM_REG_PC)
-        raise EmulationError(f"emulation failed: {e} at pc={pc:#x} in {_owner(funcs, pc)} "
-                             f"after {state['count']:,} counted instructions") from e
+        last = state["last"] if state["last"] is not None else pc
+        if state["fault"] is not None:
+            access, address = state["fault"]
+            raise EmulationError(_bad_access(_FAULT_KINDS.get(access, "read_unmapped"), address,
+                                             _owner(funcs, last), last)) from e
+        raise EmulationError(
+            f"emulation failed: {e} at pc={pc:#x} in {_owner(funcs, pc)} after {state['count']:,} counted "
+            f"instructions.{FIX}check that the code was built for this target's core; an instruction the core "
+            "does not have, or an unaligned access, ends the run like this.") from e
     if state["error"]:
         raise EmulationError(state["error"])
     if state["pending"] is not None:  # ended on a conditional branch: count the cheaper direction
@@ -187,7 +270,7 @@ def run_trace(elf_path: str | Path, core: str, entry: str, measure: str | None =
         if not tail_called:
             raise EmulationError(f"{measure} was entered but never returned before {entry} finished")
     if not trace.hits:
-        raise EmulationError(f"{measure} was never executed (the compiler may have inlined or cloned it)")
+        raise EmulationError(_never_executed(measure))
     trace.return_value = mu.reg_read(A.UC_ARM_REG_R0)
     for (addr, _), n in trace.hits.items():
         trace.by_function[_owner(funcs, addr)] += n

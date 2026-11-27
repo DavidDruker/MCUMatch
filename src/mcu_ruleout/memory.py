@@ -43,6 +43,13 @@ NOT_MODELED = (
 )
 
 
+NO_STATIC_DATA = (
+    "No static data was found, so the RAM figure is the entry function's stack frame alone. Buffers that a "
+    "caller passes in by pointer are not counted. Fix: if the kernel works on such buffers, declare them as "
+    "static arrays in a harness function and call the kernel from it (`mcu-ruleout new NAME` writes a "
+    "starting point).")
+
+
 @dataclass
 class Measurement:
     label: str
@@ -95,6 +102,7 @@ class MemoryResult:
     user_flash_lb: int | None = None  # the same bounds counting only your own code
     user_ram_lb: int | None = None
     cautions: list[str] = field(default_factory=list)
+    notes: list[str] = field(default_factory=list)  # hints that do not change the verdict
     flash_limit: Fraction = FULL  # share of each capacity the smallest build may use before it is ruled out
     ram_limit: Fraction = FULL
 
@@ -201,6 +209,8 @@ def decide(target: Target, measurements: list[Measurement], flash_limit: Fractio
     if known:
         res.user_flash_lb = min(m.user_flash for m in known)
         res.user_ram_lb = min(m.user_ram for m in known)
+    if all(m.sizes.ram_static_bytes == 0 for m in ok):
+        res.notes.append(NO_STATIC_DATA)
     for name, need, own, cap, limit in res._resources():
         allowed = cap * limit  # exact: a need that equals the limit is not ruled out
         if need > cap:

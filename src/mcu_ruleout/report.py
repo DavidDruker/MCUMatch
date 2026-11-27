@@ -12,6 +12,7 @@ from importlib.metadata import PackageNotFoundError, version
 from . import __version__
 from . import memory as M
 from . import timing as T
+from .emu import short_error
 from .limits import FULL, format_at_least, format_percent
 from .shortlist import Row, Shortlist
 from .targets import Target
@@ -98,7 +99,7 @@ def _measurement_json(m: M.Measurement) -> dict:
 def _memory_core_json(res: M.MemoryResult) -> dict:
     return {
         "verdict": res.verdict, "ruled_out": res.ruled_out, "reasons": res.reasons,
-        "holds_without_library": res.holds_without_library, "cautions": res.cautions,
+        "holds_without_library": res.holds_without_library, "cautions": res.cautions, "notes": res.notes,
         "over_capacity": res.over_capacity,
         "flash_use_limit": float(res.flash_limit), "ram_use_limit": float(res.ram_limit),
         "flash_use_at_least": res.flash_use_lb, "ram_use_at_least": res.ram_use_lb,
@@ -152,6 +153,8 @@ def print_memory(res: M.MemoryResult, inputs: dict, vers: dict) -> None:
         print(f"  - {r}")
     for c in res.cautions:
         print(f"  CAUTION: {c}")
+    for n in res.notes:
+        print(f"  NOTE: {n}")
     if not res.ruled_out:
         print(f"  {NOT_A_FIT}")
     cg = next((m.callgraph for m in res.measurements if m.ok and m.callgraph), None)
@@ -230,7 +233,7 @@ def print_timing(res: T.TimingResult, built: str, call_args: tuple[int, ...], ve
                 mark = "  <- fastest" if b.label == res.label else ""
                 print(f"  {b.label:<32} {b.cost.trace.instructions:>12,} {b.cost.cycles:>13,}{mark}")
             else:
-                print(f"  {b.label:<32} not traced: {b.error}")
+                print(f"  {b.label:<32} not traced: {short_error(b.error)}")
     print(f"\nExecuted instructions:  {trace.instructions:>14,}")
     print(f"Cycle lower bound:      {res.cycles_lb:>14,}" + (f"   (from {res.label})" if len(res.builds) > 1 else ""))
     print(f"Clock (maximum rated):  {res.clock_hz:>14,} Hz   ({target.max_clock_hz.where})")
