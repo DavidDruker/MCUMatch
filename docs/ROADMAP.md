@@ -653,4 +653,4 @@ Add one line per finished task.
 | 2026-11-27 | (bug) | `--cflags -O3` was rejected by the argument parser; only values with a space worked. Found by the recipe's first real run | `5d8daf6` |
 | 2026-11-27 | 6.13 | `Dockerfile` with the pinned toolchain; CI builds it and runs a check and the dry run inside it. Not published | `5d8daf6` |
 | 2026-11-27 | 1.7 (run, not accepted) | Nine vendor packs pinned and fetched in CI; the cross-check ran on all 11 specs: 23 of 33 comparisons agree, 10 differ. The first run showed the script was adding up peripheral windows and aliases as memory; it now counts only real program flash and RAM and lists what it leaves out | `604f0a6`, `a843d6f`, `4e1ad29`, `92f28f2` |
-| 2026-11-27 | (finding) | NXP's pack lists a 4 kB FlexRAM region for the MK64FN1M0VLL12, and the spec says the part has none. Open; recorded in the spec's notes and in `docs/CATALOGUE_CHECK.md` | this commit |
+| 2026-11-27 | (finding) | NXP's pack lists a 4 kB FlexRAM region for the MK64FN1M0VLL12, and the spec says the part has none. Open; recorded in the spec's notes and in `docs/CATALOGUE_CHECK.md` | `34d0330` |
