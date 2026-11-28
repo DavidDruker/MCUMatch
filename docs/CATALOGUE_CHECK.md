@@ -39,28 +39,122 @@ first below.
 
 ## Pack cross-check (task 1.7)
 
-Not run yet: no vendor pack has been downloaded. `scripts/check_against_packs.py` compares each
-spec's flash, RAM and maximum clock with the vendor's CMSIS device family pack. A pack is a
-cross-check and never a source, so a difference means "re-read the datasheet page", not "copy the
-pack".
+**Run on 2026-11-27 in CI, on commit `92f28f2`**
+([run 46053768532](https://github.com/DavidDruker/MCUMatch/actions/runs/46053768532)).
+`scripts/check_against_packs.py` compared each spec's flash, RAM and maximum clock with the
+vendor's CMSIS device family pack. **23 of 33 comparisons agree. 10 differ, and in 5 of those the
+pack gives more than the spec.** One of the ten is an open question (the K64's FlexRAM, row 1
+below). No difference has been confirmed by a person, so none is recorded as `explained` in
+`scripts/pack_devices.toml`.
 
-1. Download the packs by hand into `packs/` (ignored by Git) from <https://www.keil.arm.com/packs/>
-   or the vendor's site. A `.pack` file can stay zipped.
-2. Run `python scripts/check_against_packs.py --markdown` and paste the table here.
-3. If it reports "no pack device matches", correct the name pattern in
-   `scripts/pack_devices.toml`. The patterns there were written before any pack was seen.
-4. For each `DIFFERENT` row, re-read the datasheet page the spec cites. If the spec is right,
-   record the reason under `explained` in `scripts/pack_devices.toml` and here. If the spec is
-   wrong, fix it as in step 3 of the list above.
+A pack is a cross-check and never a source, so a difference means "re-read the datasheet page",
+not "copy the pack". No number in a spec was changed because of this run. Agreement is not a
+person-check either: it shows that the spec and the pack say the same thing, and both can be wrong
+in the same way.
 
-Differences to expect, because a spec takes the most generous figure and a pack describes a
-default configuration: the RP2040's XIP cache and USB RAM, the SAM D51's backup RAM, clock ratings
-that need a special mode (Apollo3 burst mode, RP2040 at raised core voltage), and board-level
-flash that a chip pack cannot know (the Pico's 2 MB chip).
+### How it runs
+
+- `scripts/packs.toml` pins nine packs by version and SHA-256. `python scripts/fetch_packs.py`
+  downloads them into `packs/` (ignored by Git, about 160 MB) and checks each hash. Nothing from
+  a pack is committed.
+- `python scripts/check_against_packs.py --markdown` prints the table below. `--regions` lists
+  every memory region of each matched device and says whether it was counted, and why not.
+- The `pack cross-check` workflow (`.github/workflows/packs.yml`) does both whenever a spec, the
+  pack list or the script changes, and leaves the output on the run's summary page. It fails when
+  a pack cannot be fetched or does not match its hash. It does not fail on a difference.
+- NXP's own KL26 pack (NXP.MKL26Z4_DFP 10.0.3) lists only the 128 kB and 256 kB parts. The 64 kB
+  part is compared with Keil's older pack for the whole KL family, which the pack index marks as
+  deprecated since 2023-09-03.
+
+### What a pack total counts
+
+A pack lists more than program flash and RAM: peripheral address windows, the same memory at a
+second address, windows for external flash, configuration rows. The first run added all of them
+up and reported, for example, 538 MB of RAM for the SAM D21. The script now counts a region only
+when all of these hold:
+
+1. Its access string makes it RAM (readable and writable) or program flash (readable and
+   executable, not writable), and the pack does not mark it as a peripheral or as an alias of
+   another region.
+2. The pack gives it to the linker by default (`default="1"`). When the pack marks no such region
+   of that kind, every region that rule 1 keeps is counted.
+3. Each address is counted once, however many regions cover it.
+
+These rules use only what the pack format says about a region. They know nothing about the chip.
+Nordic's packs, for example, list the region at 0x00800000 as an ordinary default RAM region, so
+it is counted and appears as a difference below.
+
+### Result
 
 | spec | quantity | spec says | pack says | result | detail |
 |---|---|---|---|---|---|
-| (not run) | | | | | |
+| apollo3-blue | flash | 1,048,576 B | 999,424 B | DIFFERENT | AMA3B1KK-KBR in AmbiqMicro.Apollo_DFP.1.6.0.pack: the pack gives less than the spec; re-read the datasheet. Counted: IROM1 999,424 B at 0x0000c000 |
+| apollo3-blue | ram | 393,216 B | 393,216 B | same | AMA3B1KK-KBR in AmbiqMicro.Apollo_DFP.1.6.0.pack. Counted: IRAM1 393,216 B at 0x10000000 |
+| apollo3-blue | clock | 96 MHz | 48 MHz | DIFFERENT | AMA3B1KK-KBR in AmbiqMicro.Apollo_DFP.1.6.0.pack: the pack gives less than the spec; re-read the datasheet |
+| atsamd21g18a | flash | 262,144 B | 262,144 B | same | ATSAMD21G18A in Microchip.SAMD21_DFP.3.9.287.pack. Counted: FLASH 262,144 B at 0x00000000 |
+| atsamd21g18a | ram | 32,768 B | 32,768 B | same | ATSAMD21G18A in Microchip.SAMD21_DFP.3.9.287.pack. Counted: HMCRAMC0 32,768 B at 0x20000000. Not counted: HPB0 65,536 B at 0x40000000 (marked as a peripheral), HPB1 65,536 B at 0x41000000 (marked as a peripheral), HPB2 65,536 B at 0x42000000 (marked as a peripheral), PPB 1,048,576 B at 0xe0000000 (marked as a peripheral), SCS 4,096 B at 0xe000e000 (marked as a peripheral), PERIPHERALS 536,870,912 B at 0x40000000 (marked as a peripheral), USER_ROW 256 B at 0x00804000 (not readable) |
+| atsamd21g18a | clock | 48 MHz | 48 MHz | same | ATSAMD21G18A in Microchip.SAMD21_DFP.3.9.287.pack |
+| atsamd51j19a | flash | 524,288 B | 524,288 B | same | ATSAMD51J19A in Microchip.SAMD51_DFP.3.10.283.pack. Counted: FLASH 524,288 B at 0x00000000 |
+| atsamd51j19a | ram | 208,896 B | 196,608 B | DIFFERENT | ATSAMD51J19A in Microchip.SAMD51_DFP.3.10.283.pack: the pack gives less than the spec; re-read the datasheet. Counted: HSRAM 196,608 B at 0x20000000. Not counted: BKUPRAM 8,192 B at 0x47000000 (not given to the linker by default), CMCC 16,777,216 B at 0x03000000 (marked as a peripheral), CMCC_DATARAM 4,096 B at 0x03000000 (marked as a peripheral), CMCC_TAGRAM 1,024 B at 0x03001000 (marked as a peripheral), CMCC_VALIDRAM 64 B at 0x03002000 (marked as a peripheral), HPB0 17,408 B at 0x40000000 (marked as a peripheral), HPB1 139,264 B at 0x41000000 (marked as a peripheral), HPB2 15,360 B at 0x42000000 (marked as a peripheral), HPB3 12,288 B at 0x43000000 (marked as a peripheral), SEEPROM 131,072 B at 0x44000000 (marked as a peripheral), SDHC0 3,072 B at 0x45000000 (marked as a peripheral), PPB 1,048,576 B at 0xe0000000 (marked as a peripheral), SCS 4,096 B at 0xe000e000 (marked as a peripheral) |
+| atsamd51j19a | clock | 120 MHz | 120 MHz | same | ATSAMD51J19A in Microchip.SAMD51_DFP.3.10.283.pack |
+| mk64fn1m0vll12 | flash | 1,048,576 B | 1,048,576 B | same | MK64FN1M0VLL12 in NXP.MK64F12_DFP.14.0.0.pack. Counted: PROGRAM_FLASH 1,048,576 B at 0x00000000 |
+| mk64fn1m0vll12 | ram | 262,144 B | 266,240 B | DIFFERENT | MK64FN1M0VLL12 in NXP.MK64F12_DFP.14.0.0.pack: the pack gives more than the spec; re-read the datasheet. Counted: FLEX_RAM 4,096 B at 0x14000000, SRAM_LOWER 65,536 B at 0x1fff0000, SRAM_UPPER 196,608 B at 0x20000000 |
+| mk64fn1m0vll12 | clock | 120 MHz | 120 MHz | same | MK64FN1M0VLL12 in NXP.MK64F12_DFP.14.0.0.pack |
+| mkl26z64vft4 | flash | 65,536 B | 65,536 B | same | MKL26Z64xxx4 in Keil.Kinetis_KLxx_DFP.1.15.1.pack. Counted: IROM1 65,536 B at 0x00000000 |
+| mkl26z64vft4 | ram | 8,192 B | 8,192 B | same | MKL26Z64xxx4 in Keil.Kinetis_KLxx_DFP.1.15.1.pack. Counted: IRAM1 8,192 B at 0x1ffff800 |
+| mkl26z64vft4 | clock | 48 MHz | 48 MHz | same | MKL26Z64xxx4 in Keil.Kinetis_KLxx_DFP.1.15.1.pack |
+| mspm0g3507 | flash | 131,072 B | 131,072 B | same | MSPM0G3507 in TexasInstruments.MSPM0G1X0X_G3X0X_DFP.1.3.1.pack. Counted: IROM1 131,072 B at 0x00000000. Not counted: IROM2 131,072 B at 0x00400000 (an alias of IROM1), NonMain_ECC 512 B at 0x41c00000 (not executable), NonMain_noECC 512 B at 0x41c10000 (an alias of NonMain_ECC), Factory_ECC 128 B at 0x41c40000 (not executable), Factory_noECC 128 B at 0x41c50000 (an alias of Factory_ECC) |
+| mspm0g3507 | ram | 32,768 B | 32,768 B | same | MSPM0G3507 in TexasInstruments.MSPM0G1X0X_G3X0X_DFP.1.3.1.pack. Counted: IRAM1 32,768 B at 0x20000000. Not counted: IRAM_Parity 32,768 B at 0x20100000 (an alias of IRAM1), IRAM_No_Parity 32,768 B at 0x20200000 (an alias of IRAM1), IRAM_Parity_Code 32,768 B at 0x20300000 (an alias of IRAM1) |
+| mspm0g3507 | clock | 80 MHz | 80 MHz | same | MSPM0G3507 in TexasInstruments.MSPM0G1X0X_G3X0X_DFP.1.3.1.pack |
+| nrf52832 | flash | 524,288 B | 524,288 B | same | nRF52832_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack. Counted: IROM1 524,288 B at 0x00000000 |
+| nrf52832 | ram | 65,536 B | 131,072 B | DIFFERENT | nRF52832_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack: the pack gives more than the spec; re-read the datasheet. Counted: IRAM1 65,536 B at 0x20000000, IRAM2 65,536 B at 0x00800000 |
+| nrf52832 | clock | 64 MHz | 64 MHz | same | nRF52832_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack |
+| nrf52833 | flash | 524,288 B | 524,288 B | same | nRF52833_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack. Counted: IROM1 524,288 B at 0x00000000 |
+| nrf52833 | ram | 131,072 B | 262,144 B | DIFFERENT | nRF52833_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack: the pack gives more than the spec; re-read the datasheet. Counted: IRAM1 131,072 B at 0x20000000, IRAM2 131,072 B at 0x00800000 |
+| nrf52833 | clock | 64 MHz | 64 MHz | same | nRF52833_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack |
+| nrf52840 | flash | 1,048,576 B | 135,266,304 B | DIFFERENT | nRF52840_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack: the pack gives more than the spec; re-read the datasheet. Counted: IROM1 1,048,576 B at 0x00000000, IROM2 134,217,728 B at 0x12000000 |
+| nrf52840 | ram | 262,144 B | 524,288 B | DIFFERENT | nRF52840_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack: the pack gives more than the spec; re-read the datasheet. Counted: IRAM1 262,144 B at 0x20000000, IRAM2 262,144 B at 0x00800000 |
+| nrf52840 | clock | 64 MHz | 64 MHz | same | nRF52840_xxAA in NordicSemiconductor.nRF_DeviceFamilyPack.8.44.1.pack |
+| rp2040-pico | flash | 2,097,152 B | 2,097,152 B | same | RP2040 in RaspberryPi.RP2xxx_DFP.0.9.5.pack. Counted: External_Flash 2,097,152 B at 0x10000000 |
+| rp2040-pico | ram | 290,816 B | 270,336 B | DIFFERENT | RP2040 in RaspberryPi.RP2xxx_DFP.0.9.5.pack: the pack gives less than the spec; re-read the datasheet. Counted: SRAM 270,336 B at 0x20000000 |
+| rp2040-pico | clock | 200 MHz | 133 MHz | DIFFERENT | RP2040 in RaspberryPi.RP2xxx_DFP.0.9.5.pack: the pack gives less than the spec; re-read the datasheet |
+| tm4c123gh6pm | flash | 262,144 B | 262,144 B | same | TM4C123GH6PM in Keil.TM4C_DFP.1.1.0.pack. Counted: IROM1 262,144 B at 0x00000000 |
+| tm4c123gh6pm | ram | 32,768 B | 32,768 B | same | TM4C123GH6PM in Keil.TM4C_DFP.1.1.0.pack. Counted: IRAM1 32,768 B at 0x20000000 |
+| tm4c123gh6pm | clock | 80 MHz | 80 MHz | same | TM4C123GH6PM in Keil.TM4C_DFP.1.1.0.pack |
+
+### The ten differences
+
+None of these has been checked by a person. Each row gives what the pack shows, what the spec's
+own cited note says about it, and what the person doing the check has to confirm on the rendered
+page. When the spec turns out right, record the reason under `explained` in
+`scripts/pack_devices.toml`. When it is wrong, fix the spec as in step 3 of the list above.
+
+**The pack gives more than the spec.** Look at these first: a spec that understates a capacity
+could rule a part out wrongly.
+
+| # | Spec, quantity | What the pack shows | What the spec says about it | To confirm |
+|---|---|---|---|---|
+| 1 | `mk64fn1m0vll12` RAM | 4,096 B more. A `FLEX_RAM` region of 4,096 B at 0x14000000, next to `SRAM_LOWER` 65,536 B at 0x1FFF0000 and `SRAM_UPPER` 196,608 B at 0x20000000. The two SRAM regions together are the spec's 262,144 B | Note in the spec: "N in the part number means no FlexNVM or FlexRAM (s7.3 Fields p.80)". **The pack and that note disagree, and no document read so far settles it.** The reference manual (K64P144M120SF5RM) could not be fetched without a login | In the reference manual: whether this part number has the 4 kB FlexRAM, and whether it can hold ordinary data. If it can, the spec understates RAM by 4,096 B (1.6 %) and needs one more region with a condition. Until then, a RAM rule-out on this part by less than 4,096 B is not settled. The pack's split of the SRAM (64 kB below 0x20000000, 192 kB from it) is the split the spec could not cite |
+| 2 | `nrf52832` RAM | Twice the spec: `IRAM2` 65,536 B at 0x00800000 as well as `IRAM1` 65,536 B at 0x20000000 | Note: the Code RAM region at 0x00800000 is the same physical RAM as the Data RAM at 0x20000000 and is not counted twice. The note cites only "Memory chapter" | The memory map page of the product specification. Add its section and printed page to the note |
+| 3 | `nrf52833` RAM | Twice the spec: `IRAM2` 131,072 B at 0x00800000 as well as `IRAM1` 131,072 B at 0x20000000 | The same note, also citing only "Memory chapter" | As row 2 |
+| 4 | `nrf52840` RAM | Twice the spec: `IRAM2` 262,144 B at 0x00800000 as well as `IRAM1` 262,144 B at 0x20000000 | Note: the code-RAM alias at 0x00800000 is the same physical RAM as 0x20000000 (PS s4.2 p.21-22) | That page |
+| 5 | `nrf52840` flash | 134,217,728 B more: `IROM2` at 0x12000000, as well as `IROM1` 1,048,576 B at 0 | Note: a board with external QSPI flash can execute from the XIP window at 0x12000000-0x19FFFFFF (PS Figure 3 p.23, s6.19.5 p.580); the spec is chip-level and such a board needs its own spec. That window is 134,217,728 B long, the size of the pack's region | Those pages |
+
+**The pack gives less than the spec.** This is the usual case: a spec takes the most generous
+figure the datasheet allows, and a pack describes a default configuration.
+
+| # | Spec, quantity | What the pack shows | What the spec says about it | To confirm |
+|---|---|---|---|---|
+| 6 | `apollo3-blue` flash | 49,152 B less. `IROM1` starts at 0x0000C000 instead of 0 and ends where the spec's region ends, at 0x00100000 | Flash is 0x00000000 - 0x000FFFFF (s3.3 Table 5 p.78). Note: "Any flash a secure boot loader keeps is not subtracted, so capacity stays an upper bound" | What the first 0xC000 bytes hold, and that they are part of the 1 MB of flash |
+| 7 | `apollo3-blue` clock | 48 MHz | 96 MHz is the TurboSPOT burst mode, off by default and with conditions; the nominal clock is 48 MHz (s12.1.6 p.550, Features p.2) | That page and the conditions |
+| 8 | `atsamd51j19a` RAM | 12,288 B less. Counted: `HSRAM` 196,608 B. Not counted: `BKUPRAM` 8,192 B at 0x47000000 (not given to the linker by default) and `CMCC_DATARAM` 4,096 B at 0x03000000 (marked as a peripheral) | The spec has the same three regions: embedded SRAM 196,608 B, backup SRAM 8,192 B (s9.2 Table 9-1 p.50) and tightly coupled memory 4,096 B, usable only with the cache disabled or made smaller (s11.6.7 and Table 11-1 p.74-75). 196,608 + 8,192 + 4,096 = 208,896 | Those pages |
+| 9 | `rp2040-pico` RAM | 20,480 B less. Counted: `SRAM` 270,336 B at 0x20000000 | The spec adds the XIP cache, 16,384 B, usable only with the cache disabled, and the USB DPRAM, 4,096 B, usable only if USB is not used (s2.6.2.1 p.123). 270,336 + 16,384 + 4,096 = 290,816 | That page |
+| 10 | `rp2040-pico` clock | 133 MHz | 200 MHz needs a raised core voltage; the rating at the default core voltage is 133 MHz (s2.15.3.1, note after Table 206, p.179) | That note |
+
+Two rows that agree still deserve a look. The `rp2040-pico` flash agrees because the pack's
+`External_Flash` region happens to be 2 MB, the size of the Pico's flash chip; the flash is on the
+board, and the pack's figure is a default. And for `mkl26z64vft4` the pack places the 8 kB of SRAM
+at 0x1FFFF800, a base address the spec does not have because the reference manual was not read.
 
 ## Per-spec tables
 

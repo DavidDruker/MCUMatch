@@ -267,9 +267,14 @@ document page, and the tool shows which specs have been.
   - The pack is a cross-check, never a source: a mismatch means "re-read the datasheet", not "copy
     the pack".
   - **Accept:** the script runs on all specs and every mismatch is explained in `docs/CATALOGUE_CHECK.md`.
-  - *Status 2026-11-27:* the script, `scripts/pack_devices.toml` and tests on made-up packs are in.
-    Not accepted yet: no vendor pack has been downloaded, so it has not run on a real one and the
-    device name patterns are first guesses.
+  - *Status 2026-11-27:* done as far as it can be without a person. Nine vendor packs are pinned
+    by version and SHA-256 (`scripts/packs.toml`), CI fetches them and runs the script on all 11
+    specs. 23 of 33 comparisons agree. All 10 differences are written up in
+    `docs/CATALOGUE_CHECK.md`, each with the spec's own cited note. Not accepted yet, for two
+    reasons. One difference is open: NXP's pack lists a 4 kB FlexRAM region for the MK64FN1M0VLL12,
+    and the spec's note says that part has none; if the pack is right the spec understates RAM by
+    4,096 B, and only the reference manual (task 1.4) can settle it. And no difference has been
+    confirmed by a person on the rendered page, which is part of task 1.2.
 - [ ] **1.8 Update README and LIMITATIONS** to the new catalogue state. (S)
 
 **Exit:** release-gate test passes for all built-in specs; the status block says 11 of 11 checked.
@@ -647,3 +652,5 @@ Add one line per finished task.
 | 2026-11-27 | 3.5 | The CMSIS-DSP recipe runs in CI against v1.18.0 and passes | `6c248b5` |
 | 2026-11-27 | (bug) | `--cflags -O3` was rejected by the argument parser; only values with a space worked. Found by the recipe's first real run | `5d8daf6` |
 | 2026-11-27 | 6.13 | `Dockerfile` with the pinned toolchain; CI builds it and runs a check and the dry run inside it. Not published | `5d8daf6` |
+| 2026-11-27 | 1.7 (run, not accepted) | Nine vendor packs pinned and fetched in CI; the cross-check ran on all 11 specs: 23 of 33 comparisons agree, 10 differ. The first run showed the script was adding up peripheral windows and aliases as memory; it now counts only real program flash and RAM and lists what it leaves out | `604f0a6`, `a843d6f`, `4e1ad29`, `92f28f2` |
+| 2026-11-27 | (finding) | NXP's pack lists a 4 kB FlexRAM region for the MK64FN1M0VLL12, and the spec says the part has none. Open; recorded in the spec's notes and in `docs/CATALOGUE_CHECK.md` | this commit |

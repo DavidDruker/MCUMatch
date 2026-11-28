@@ -261,8 +261,10 @@ prints one target with the citation behind each number and a line on how it was 
 manufacturers' documents by automated agents and re-read once by a second automated pass. Each
 spec carries a `[checked]` record saying so, and every report marks such a target with `^`.
 [docs/CATALOGUE_CHECK.md](docs/CATALOGUE_CHECK.md) is the log of the person-check, one row per
-number, waiting to be filled in. STM32 parts are missing because ST's site could not be reached by
-a script; they need a person to download the datasheets.
+number, waiting to be filled in. It also holds a comparison of every spec with the vendor's device
+pack: 23 of 33 figures agree, and the 10 that differ are listed with what a person has to confirm.
+One of them is open: the K64's RAM may be 4,096 bytes too low. STM32 parts are missing because
+ST's site could not be reached by a script; they need a person to download the datasheets.
 
 ## Checking the tool itself
 

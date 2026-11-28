@@ -84,6 +84,14 @@ model is a true lower bound on real silicon. See [VALIDATION.md](VALIDATION.md).
 - **Tables were read as extracted text**, not as rendered pages. A misread column is possible.
 - **Two Nordic parts have no page numbers** because only the HTML edition could be read.
 - **Two Kinetis parts have no memory addresses** because NXP's reference manuals need a login.
+- **The K64's RAM may be 4,096 bytes too low.** The spec counts 262,144 B and says the part has no
+  FlexRAM. NXP's device pack lists a 4 kB FlexRAM region for the same part number. A pack is not a
+  source, so the spec is unchanged, and the reference manual has to settle it. Until then a RAM
+  rule-out on the MK64FN1M0VLL12 by less than 4,096 B is not settled.
+- **The specs were compared with the vendors' device packs** (`docs/CATALOGUE_CHECK.md`): 23 of 33
+  figures agree and 10 differ. The spec's notes account for nine of the ten; the tenth is the K64
+  item above. Agreement with a pack is not a person-check, and no difference has been confirmed
+  by a person.
 - **No STM32 part.** ST's site did not answer automated requests. This is the largest gap.
 - **A spec is for one exact part.** Other variants, and boards with different flash chips, need
   their own spec. The board names in the notes are general knowledge, not from the cited documents.

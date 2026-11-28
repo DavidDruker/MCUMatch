@@ -63,7 +63,11 @@ Everything since 0.1.0. Not released; `pyproject.toml` says `0.2.0.dev0`.
   shareable result (the page itself is also new since 0.1.0; see the last item).
 - **`schema_version` and `kind`** in every JSON object, and `docs/JSON.md`.
 - A script that cross-checks target specs against vendor CMSIS packs, and a log for the
-  person-check of every spec (`docs/CATALOGUE_CHECK.md`).
+  person-check of every spec (`docs/CATALOGUE_CHECK.md`). Nine packs are pinned by version and
+  SHA-256 and fetched in CI. On the 11 built-in specs, 23 of 33 comparisons agree and 10 differ;
+  the differences are written up in that log and none has been confirmed by a person. No spec
+  number changed. One difference is open: NXP's pack lists 4,096 B of FlexRAM for the
+  MK64FN1M0VLL12 that the spec does not count.
 - A CMSIS-DSP recipe (`docs/CMSIS_DSP.md`), run in CI against CMSIS-DSP v1.18.0.
 - From before this changelog was started (milestone M6 and the commits before it): the
   `shortlist` command across targets, nine more targets, the split between your code and library

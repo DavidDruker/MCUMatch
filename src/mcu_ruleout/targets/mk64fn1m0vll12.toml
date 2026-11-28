@@ -17,6 +17,7 @@ notes = [
     "Used on the FRDM-K64F board. That is general knowledge, not from the cited data sheet; check your own board.",
     "120 MHz is the normal run mode rating; the low-power run mode is limited to 4 MHz (Table 10 p.17).",
     "This part number has program flash only: N in the part number means no FlexNVM or FlexRAM (s7.3 Fields p.80).",
+    "Open question since 2026-11-27: NXP's device pack (NXP.MK64F12_DFP 14.0.0) lists a 4,096-byte FLEX_RAM region at 0x1400_0000 for this part number, which does not agree with the note above. A pack is not a source, so the RAM capacity is unchanged, and it may be 4,096 bytes too low. The reference manual has to settle it; see docs/CATALOGUE_CHECK.md.",
     "The SRAM is two blocks, SRAM_L below 0x2000_0000 and SRAM_U from 0x2000_0000 (AN4745 s3 p.3). Their sizes on this part are in the reference manual, which was not read; the 256 kB total is from the data sheet.",
     "Flash configuration field and reserved regions are not subtracted, so capacity stays an upper bound.",
 ]
